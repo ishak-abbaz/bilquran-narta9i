@@ -81,13 +81,18 @@ export default function Header() {
 
           <div className="md:hidden">
             <Sheet>
-                <SheetTrigger>
-                    <button
-                        className="flex size-11 items-center justify-center rounded-full border"
-                        aria-label="القائمة"
-                    >
-                        <Menu size={20} />
-                    </button>
+                <SheetTrigger
+                    className="
+                    flex
+                    size-11
+                    items-center
+                    justify-center
+                    rounded-full
+                    border
+                    "
+                    aria-label="القائمة"
+                >
+                    ☰
                 </SheetTrigger>
 
               <SheetContent side="right" className="w-80">
