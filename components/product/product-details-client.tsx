@@ -1,11 +1,14 @@
 "use client";
 
-
 import Image from "next/image";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import type { Product } from "@/types";
 
+import {
+  useCartStore,
+} from "@/store/cart";
 
 
 interface Props {
@@ -13,10 +16,15 @@ interface Props {
 }
 
 
-
 export default function ProductDetailsClient({
   product,
 }: Props) {
+
+
+  const addItem =
+    useCartStore(
+      (state) => state.addItem,
+    );
 
 
   const images =
@@ -73,18 +81,50 @@ export default function ProductDetailsClient({
 
   function addToCart() {
 
+
     if (!canAdd) {
+
+      toast.error(
+        "يرجى اختيار المقاس واللون",
+      );
+
       return;
     }
 
 
-    console.log({
-      productId: product.id,
-      name: product.name,
-      size,
-      color,
+
+    addItem({
+
+      productId:
+        product.id,
+
+      slug:
+        product.slug,
+
+      name:
+        product.name,
+
+      image:
+        selectedImage,
+
+      price:
+        product.price,
+
+      size:
+        size || "بدون مقاس",
+
+      color:
+        color || "بدون لون",
+
       quantity,
+
     });
+
+
+
+    toast.success(
+      "تمت إضافة المنتج إلى السلة",
+    );
 
   }
 
@@ -133,7 +173,7 @@ export default function ProductDetailsClient({
             "
           >
 
-            {images.map((image)=>(
+            {images.map((image) => (
 
               <button
                 key={image}
@@ -179,6 +219,7 @@ export default function ProductDetailsClient({
       >
 
 
+
         {product.category && (
 
           <p
@@ -194,6 +235,7 @@ export default function ProductDetailsClient({
 
 
 
+
         <h1
           className="
             text-3xl
@@ -202,6 +244,7 @@ export default function ProductDetailsClient({
         >
           {product.name}
         </h1>
+
 
 
 
@@ -240,6 +283,7 @@ export default function ProductDetailsClient({
 
 
 
+
         <p
           className="
             leading-8
@@ -260,10 +304,13 @@ export default function ProductDetailsClient({
               : "font-medium text-red-600"
           }
         >
+
           {product.stock > 0
             ? "متوفر"
             : "نفدت الكمية"}
+
         </p>
+
 
 
 
@@ -287,7 +334,7 @@ export default function ProductDetailsClient({
               "
             >
 
-              {product.sizes.map((item)=>(
+              {product.sizes.map((item) => (
 
                 <button
                   key={item}
@@ -323,6 +370,7 @@ export default function ProductDetailsClient({
 
 
 
+
         {requiresColor && (
 
           <div>
@@ -340,7 +388,7 @@ export default function ProductDetailsClient({
               "
             >
 
-              {product.colors.map((item)=>(
+              {product.colors.map((item) => (
 
                 <button
                   key={item}
@@ -391,8 +439,8 @@ export default function ProductDetailsClient({
               setQuantity(
                 Math.max(
                   1,
-                  quantity - 1
-                )
+                  quantity - 1,
+                ),
               )
             }
             className="rounded-lg border px-4 py-2"
@@ -409,7 +457,9 @@ export default function ProductDetailsClient({
           <button
             type="button"
             onClick={() =>
-              setQuantity(quantity + 1)
+              setQuantity(
+                quantity + 1,
+              )
             }
             className="rounded-lg border px-4 py-2"
           >
@@ -445,7 +495,9 @@ export default function ProductDetailsClient({
             dark:text-black
           "
         >
+
           أضف إلى السلة
+
         </button>
 
 
@@ -454,5 +506,6 @@ export default function ProductDetailsClient({
 
 
     </>
+
   );
 }
