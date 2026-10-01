@@ -130,3 +130,19 @@ when others then
 end;
 
 $$;
+
+=================================
+
+create or replace function restore_product_stock(
+  p_product_id uuid,
+  p_quantity integer
+)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.products
+  set stock = stock + p_quantity
+  where id = p_product_id;
+$$;
