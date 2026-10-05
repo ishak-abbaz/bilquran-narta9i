@@ -11,12 +11,14 @@ export type Product = {
   name: string;
   slug: string;
   description: string | null;
+  publisher: string | null;
+  riwaya: string | null;
   price: number;
-  compare_at_price: number | null;
   category_id: string | null;
+
+  // The database CHECK constraint guarantees at most 3 images.
   images: string[];
-  sizes: string[];
-  colors: string[];
+
   stock: number;
   is_featured: boolean;
   is_active: boolean;
@@ -31,12 +33,17 @@ export type OrderStatus =
   | "delivered"
   | "cancelled";
 
+export type DeliveryType =
+  | "home"
+  | "desk";
+
 export type Order = {
   id: string;
   order_number: number;
   customer_name: string;
   phone: string;
   wilaya: string;
+  delivery_type: DeliveryType;
   address: string;
   notes: string | null;
   status: OrderStatus;
@@ -52,9 +59,7 @@ export type OrderItem = {
   product_id: string | null;
   product_name: string | null;
   unit_price: number | null;
-  quantity: number | null;
-  size: string | null;
-  color: string | null;
+  quantity: number;
 };
 
 export type Settings = {

@@ -2,198 +2,190 @@ import Image from "next/image";
 import Link from "next/link";
 
 import ProductCard from "@/components/product-card";
-
 import {
   getCategories,
+  getFeaturedProducts,
   getNewArrivals,
 } from "@/lib/data/products";
 
-
 export default async function HomePage() {
-
   const [
     categories,
     newProducts,
+    featuredProducts,
   ] = await Promise.all([
     getCategories(),
     getNewArrivals(8),
+    getFeaturedProducts(),
   ]);
-
 
   return (
     <main className="space-y-20 px-4 py-8 text-start sm:px-8 lg:px-12">
-
-
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-4xl bg-neutral-100 dark:bg-neutral-900">
-
-        <picture>
-          <source
-            media="(max-width: 768px)"
-            srcSet="/hero-mobile.jpg"
-          />
-
-          <Image
-            src="/hero.jpg"
-            alt="مجموعة أسترا"
-            width={1600}
-            height={900}
-            priority
-            sizes="100vw"
-            className="h-[70vh] w-full object-cover"
-          />
-
-        </picture>
-
-
-        <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/60 to-transparent p-8 text-white sm:p-12">
-
-          <div className="max-w-xl space-y-6">
-
-            <h1 className="text-4xl font-bold leading-tight sm:text-6xl">
-              أناقة عصرية تناسب كل يوم
-            </h1>
-
-
-            <p className="text-lg text-white/90">
-              اكتشف تشكيلتنا الجديدة من الملابس العصرية بجودة عالية.
+      <section className="overflow-hidden rounded-4xl border border-border bg-muted">
+        <div className="mx-auto flex min-h-[520px] max-w-7xl items-center px-6 py-16 sm:px-10 lg:px-16">
+          <div className="max-w-3xl">
+            <p className="mb-4 text-sm font-semibold text-primary">
+              مصاحف وكتب إسلامية
             </p>
 
+            <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+              كتب مختارة بعناية
+              <br />
+              لكل بيت وقارئ
+            </h1>
 
-            <div className="flex flex-wrap gap-4">
+            <p className="mt-6 max-w-2xl text-base leading-8 text-muted-foreground sm:text-lg">
+              اكتشف مجموعة من المصاحف والكتب الإسلامية
+              المناسبة للقراءة والتعلم والإهداء، مع خدمة
+              التوصيل والدفع عند الاستلام داخل الجزائر.
+            </p>
 
+            <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/shop"
-                className="rounded-full bg-white px-7 py-3 font-semibold text-black transition hover:bg-neutral-200"
+                className="inline-flex h-12 items-center justify-center rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
               >
-                تسوق المجموعة
+                تسوق الكتب
               </Link>
-
 
               <Link
                 href="/contact"
-                className="rounded-full border border-white px-7 py-3 font-semibold text-white transition hover:bg-white hover:text-black"
+                className="inline-flex h-12 items-center justify-center rounded-full border border-border bg-background px-7 text-sm font-semibold transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 اتصل بنا
               </Link>
-
             </div>
-
           </div>
-
         </div>
-
       </section>
-
-
 
       {/* Categories */}
-      <section>
+      <section className="space-y-8">
+        <div>
+          <p className="text-sm font-semibold text-primary">
+            تصفح حسب الاهتمام
+          </p>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-
-          {categories.map((category) => (
-
-            <Link
-              key={category.id}
-              href={`/shop?category=${category.slug}`}
-              className="group overflow-hidden rounded-3xl border border-black/10 bg-white dark:border-white/10 dark:bg-black"
-            >
-
-              <div className="relative aspect-[4/3] overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-
-                {category.image_url ? (
-
-                  <Image
-                    src={category.image_url}
-                    alt={category.name}
-                    fill
-                    sizes="(max-width: 768px) 50vw, 25vw"
-                    className="object-cover transition duration-500 group-hover:scale-105"
-                  />
-
-                ) : (
-
-                  <div className="flex h-full items-center justify-center text-sm text-neutral-500">
-                    لا توجد صورة
-                  </div>
-
-                )}
-
-              </div>
-
-
-              <div className="p-5">
-
-                <p className="text-sm tracking-[0.25em] text-neutral-500">
-                  التصنيف
-                </p>
-
-
-                <h2 className="mt-2 text-xl font-bold">
-                  {category.name}
-                </h2>
-
-              </div>
-
-            </Link>
-
-          ))}
-
+          <h2 className="mt-2 text-3xl font-bold">
+            التصنيفات
+          </h2>
         </div>
 
+        {categories.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center text-sm text-muted-foreground">
+            لا توجد تصنيفات حالياً.
+          </div>
+        ) : (
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-5">
+            {categories.map((category) => (
+              <Link
+                key={category.id}
+                href={`/shop?category=${encodeURIComponent(
+                  category.slug,
+                )}`}
+                className="group overflow-hidden rounded-2xl border border-border bg-card"
+              >
+                <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                  {category.image_url ? (
+                    <Image
+                      src={category.image_url}
+                      alt={category.name}
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                      لا توجد صورة
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4">
+                  <h3 className="font-bold transition-colors group-hover:text-primary">
+                    {category.name}
+                  </h3>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
-
-
-
 
       {/* New arrivals */}
       <section className="space-y-8">
-
-        <div className="flex items-center justify-between">
-
+        <div className="flex items-end justify-between gap-4">
           <div>
-
-            <p className="text-sm tracking-[0.3em] text-neutral-500">
-              جديد
+            <p className="text-sm font-semibold text-primary">
+              جديد المتجر
             </p>
 
-
-            <h2 className="text-3xl font-bold">
+            <h2 className="mt-2 text-3xl font-bold">
               وصل حديثاً
             </h2>
-
           </div>
-
 
           <Link
             href="/shop"
-            className="rounded-full border border-black/10 px-5 py-2 text-sm font-semibold transition hover:bg-black hover:text-white dark:border-white/20"
+            className="shrink-0 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
           >
             عرض الكل
           </Link>
-
         </div>
 
-
-
-        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
-
-          {newProducts.map((product) => (
-
-            <ProductCard
-              key={product.id}
-              product={product}
-            />
-
-          ))}
-
-        </div>
-
-
+        {newProducts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center text-sm text-muted-foreground">
+            لا توجد كتب حالياً.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+            {newProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
+      {/* Featured */}
+      <section className="space-y-8">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-primary">
+              اختيارات مميزة
+            </p>
 
+            <h2 className="mt-2 text-3xl font-bold">
+              الأكثر طلباً
+            </h2>
+          </div>
+
+          <Link
+            href="/shop"
+            className="shrink-0 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+          >
+            عرض الكل
+          </Link>
+        </div>
+
+        {featuredProducts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border px-6 py-14 text-center text-sm text-muted-foreground">
+            لا توجد كتب مميزة حالياً.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+            {featuredProducts.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

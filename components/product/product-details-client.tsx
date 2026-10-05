@@ -2,510 +2,207 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import { toast } from "sonner";
 
+import { formatPrice } from "@/lib/utils";
 import type { Product } from "@/types";
 
-import {
-  useCartStore,
-} from "@/store/cart";
-
-
-interface Props {
+interface ProductDetailsClientProps {
   product: Product;
 }
 
-
 export default function ProductDetailsClient({
   product,
-}: Props) {
-
-
-  const addItem =
-    useCartStore(
-      (state) => state.addItem,
-    );
-
-
+}: ProductDetailsClientProps) {
+  /*
+   * The database already limits images to three.
+   * slice() is kept as a defensive UI boundary.
+   */
   const images =
-    product.images.length > 0
-      ? product.images
-      : [
-          "/images/product-placeholder.png",
-        ];
-
-
+    product.images.slice(0, 3);
 
   const [
-    selectedImage,
-    setSelectedImage,
-  ] = useState(images[0]);
+    selectedImageIndex,
+    setSelectedImageIndex,
+  ] = useState(0);
 
+  const selectedImage =
+    images[selectedImageIndex];
 
-
-  const [
-    size,
-    setSize,
-  ] = useState("");
-
-
-
-  const [
-    color,
-    setColor,
-  ] = useState("");
-
-
-
-  const [
-    quantity,
-    setQuantity,
-  ] = useState(1);
-
-
-
-  const requiresSize =
-    product.sizes.length > 0;
-
-
-  const requiresColor =
-    product.colors.length > 0;
-
-
-
-  const canAdd =
-    (!requiresSize || size) &&
-    (!requiresColor || color);
-
-
-
-  function addToCart() {
-
-
-    if (!canAdd) {
-
-      toast.error(
-        "يرجى اختيار المقاس واللون",
-      );
-
-      return;
-    }
-
-
-
-    addItem({
-
-      productId:
-        product.id,
-
-      slug:
-        product.slug,
-
-      name:
-        product.name,
-
-      image:
-        selectedImage,
-
-      price:
-        product.price,
-
-      size:
-        size || "بدون مقاس",
-
-      color:
-        color || "بدون لون",
-
-      quantity,
-
-    });
-
-
-
-    toast.success(
-      "تمت إضافة المنتج إلى السلة",
-    );
-
-  }
-
-
+  const inStock =
+    product.stock > 0;
 
   return (
-
-    <>
-
-
-      <div
-        className="
-          space-y-4
-        "
-      >
-
-
-        <div
-          className="
-            relative
-            aspect-square
-            overflow-hidden
-            rounded-2xl
-            border
-            bg-muted
-          "
-        >
-
-          <Image
-            src={selectedImage}
-            alt={product.name}
-            fill
-            className="object-cover"
-          />
-
+    <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
+      {/* Gallery */}
+      <div className="space-y-4">
+        <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-border bg-muted">
+          {selectedImage ? (
+            <Image
+              src={selectedImage}
+              alt={product.name}
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+              لا توجد صورة لهذا الكتاب
+            </div>
+          )}
         </div>
 
+        {images.length > 0 ? (
+          <div className="flex flex-wrap gap-3">
+            {images.map(
+              (image, index) => {
+                const isSelected =
+                  index ===
+                  selectedImageIndex;
 
-
-        {images.length > 1 && (
-
-          <div
-            className="
-              flex
-              gap-3
-            "
-          >
-
-            {images.map((image) => (
-
-              <button
-                key={image}
-                type="button"
-                onClick={() =>
-                  setSelectedImage(image)
-                }
-                className="
-                  relative
-                  h-20
-                  w-20
-                  overflow-hidden
-                  rounded-lg
-                  border
-                "
-              >
-
-                <Image
-                  src={image}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                />
-
-              </button>
-
-            ))}
-
+                return (
+                  <button
+                    key={`${image}-${index}`}
+                    type="button"
+                    onClick={() =>
+                      setSelectedImageIndex(
+                        index,
+                      )
+                    }
+                    aria-label={`عرض الصورة ${
+                      index + 1
+                    }`}
+                    aria-pressed={
+                      isSelected
+                    }
+                    className={`relative aspect-[3/4] w-16 overflow-hidden rounded-xl border bg-muted transition sm:w-20 ${
+                      isSelected
+                        ? "border-primary ring-2 ring-primary/20"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <Image
+                      src={image}
+                      alt={`${product.name}، الصورة ${
+                        index + 1
+                      }`}
+                      fill
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </button>
+                );
+              },
+            )}
           </div>
-
+        ) : (
+          <div className="flex gap-3">
+            <div className="flex aspect-[3/4] w-16 items-center justify-center rounded-xl border border-dashed border-border bg-muted text-center text-[10px] text-muted-foreground sm:w-20">
+              لا توجد صورة
+            </div>
+          </div>
         )}
-
       </div>
 
-
-
-
-
-      <div
-        className="
-          space-y-6
-        "
-      >
-
-
-
-        {product.category && (
-
-          <p
-            className="
-              text-sm
-              text-muted-foreground
-            "
-          >
+      {/* Book information */}
+      <div className="flex flex-col">
+        {product.category ? (
+          <p className="text-sm font-semibold text-primary">
             {product.category.name}
           </p>
+        ) : null}
 
-        )}
-
-
-
-
-        <h1
-          className="
-            text-3xl
-            font-bold
-          "
-        >
+        <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
           {product.name}
         </h1>
 
-
-
-
-
-        <div className="flex items-center gap-3">
-
-
-          <span
-            className="
-              text-2xl
-              font-bold
-            "
-          >
-            {product.price.toLocaleString("en-US")} د.ج
-          </span>
-
-
-
-          {product.compare_at_price && (
-
-            <span
-              className="
-                text-muted-foreground
-                line-through
-              "
-            >
-              {product.compare_at_price.toLocaleString("en-US")} د.ج
-            </span>
-
-          )}
-
-
-        </div>
-
-
-
-
-
-
-        <p
-          className="
-            leading-8
-            text-muted-foreground
-          "
-        >
-          {product.description}
+        <p className="mt-5 text-2xl font-bold">
+          {formatPrice(product.price)}
         </p>
 
+        <dl className="mt-8 divide-y divide-border border-y border-border">
+          <div className="grid grid-cols-[100px_1fr] gap-4 py-4 text-sm">
+            <dt className="font-semibold text-muted-foreground">
+              الناشر
+            </dt>
 
-
-
-
-        <p
-          className={
-            product.stock > 0
-              ? "font-medium text-green-600"
-              : "font-medium text-red-600"
-          }
-        >
-
-          {product.stock > 0
-            ? "متوفر"
-            : "نفدت الكمية"}
-
-        </p>
-
-
-
-
-
-
-
-        {requiresSize && (
-
-          <div>
-
-            <h3 className="mb-3 font-semibold">
-              المقاس
-            </h3>
-
-
-            <div
-              className="
-                flex
-                flex-wrap
-                gap-2
-              "
-            >
-
-              {product.sizes.map((item) => (
-
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() =>
-                    setSize(item)
-                  }
-                  className={`
-                    rounded-lg
-                    border
-                    px-4
-                    py-2
-                    ${
-                      size === item
-                        ? "bg-black text-white dark:bg-white dark:text-black"
-                        : ""
-                    }
-                  `}
-                >
-                  {item}
-                </button>
-
-              ))}
-
-            </div>
-
+            <dd className="font-medium">
+              {product.publisher ??
+                "غير محدد"}
+            </dd>
           </div>
 
-        )}
+          {product.riwaya ? (
+            <div className="grid grid-cols-[100px_1fr] gap-4 py-4 text-sm">
+              <dt className="font-semibold text-muted-foreground">
+                الرواية
+              </dt>
 
-
-
-
-
-
-
-        {requiresColor && (
-
-          <div>
-
-            <h3 className="mb-3 font-semibold">
-              اللون
-            </h3>
-
-
-            <div
-              className="
-                flex
-                flex-wrap
-                gap-2
-              "
-            >
-
-              {product.colors.map((item) => (
-
-                <button
-                  key={item}
-                  type="button"
-                  onClick={() =>
-                    setColor(item)
-                  }
-                  className={`
-                    rounded-lg
-                    border
-                    px-4
-                    py-2
-                    ${
-                      color === item
-                        ? "bg-black text-white dark:bg-white dark:text-black"
-                        : ""
-                    }
-                  `}
-                >
-                  {item}
-                </button>
-
-              ))}
-
+              <dd className="font-medium">
+                {product.riwaya}
+              </dd>
             </div>
+          ) : null}
 
+          <div className="grid grid-cols-[100px_1fr] gap-4 py-4 text-sm">
+            <dt className="font-semibold text-muted-foreground">
+              التوفر
+            </dt>
+
+            <dd>
+              {inStock ? (
+                <span className="inline-flex items-center gap-2 font-semibold text-primary">
+                  <span
+                    className="size-2 rounded-full bg-primary"
+                    aria-hidden="true"
+                  />
+                  متوفر
+                </span>
+              ) : (
+                <span className="font-semibold text-destructive">
+                  نفدت الكمية
+                </span>
+              )}
+            </dd>
           </div>
+        </dl>
 
-        )}
+        <div className="mt-8">
+          <h2 className="text-lg font-bold">
+            وصف الكتاب
+          </h2>
 
-
-
-
-
-
-
-        <div
-          className="
-            flex
-            items-center
-            gap-4
-          "
-        >
-
-          <button
-            type="button"
-            onClick={() =>
-              setQuantity(
-                Math.max(
-                  1,
-                  quantity - 1,
-                ),
-              )
-            }
-            className="rounded-lg border px-4 py-2"
-          >
-            -
-          </button>
-
-
-          <span>
-            {quantity}
-          </span>
-
-
-          <button
-            type="button"
-            onClick={() =>
-              setQuantity(
-                quantity + 1,
-              )
-            }
-            className="rounded-lg border px-4 py-2"
-          >
-            +
-          </button>
-
-
+          <p className="mt-3 whitespace-pre-line text-sm leading-8 text-muted-foreground">
+            {product.description ??
+              "لا يوجد وصف متاح حالياً."}
+          </p>
         </div>
 
+        {/*
+          ==================================================
+          NEXT SPRINT: DIRECT ORDER FORM
+          Replace the temporary block below with:
 
+          <OrderForm product={product} />
 
+          from:
+          components/order/order-form.tsx
+          ==================================================
+        */}
+        <div className="mt-10 border-t border-border pt-6">
+          <button
+            type="button"
+            disabled
+            className="h-12 w-full cursor-not-allowed rounded-xl bg-primary px-6 font-semibold text-primary-foreground opacity-50"
+          >
+            اطلب الآن
+          </button>
 
-
-
-
-        <button
-          type="button"
-          disabled={
-            !canAdd ||
-            product.stock === 0
-          }
-          onClick={addToCart}
-          className="
-            w-full
-            rounded-xl
-            bg-black
-            py-4
-            font-semibold
-            text-white
-            disabled:cursor-not-allowed
-            disabled:opacity-50
-            dark:bg-white
-            dark:text-black
-          "
-        >
-
-          أضف إلى السلة
-
-        </button>
-
-
-
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            سيتم تفعيل الطلب المباشر قريباً.
+          </p>
+        </div>
       </div>
-
-
-    </>
-
+    </div>
   );
 }

@@ -1,19 +1,28 @@
+import Link from "next/link";
+
 import ProductCard from "@/components/product-card";
 import {
   getCategories,
   getProducts,
 } from "@/lib/data/products";
 
+type ProductSort =
+  | "newest"
+  | "price-asc"
+  | "price-desc";
 
 type ShopPageProps = {
   searchParams: Promise<{
     category?: string;
     sort?: string;
+    search?: string;
   }>;
 };
 
-
-const sortOptions = [
+const sortOptions: {
+  label: string;
+  value: ProductSort;
+}[] = [
   {
     label: "الأحدث",
     value: "newest",
@@ -28,25 +37,52 @@ const sortOptions = [
   },
 ];
 
+function buildShopHref({
+  category,
+  sort,
+  search,
+}: {
+  category?: string;
+  sort?: ProductSort;
+  search?: string;
+}) {
+  const params = new URLSearchParams();
+
+  if (category) {
+    params.set("category", category);
+  }
+
+  if (sort && sort !== "newest") {
+    params.set("sort", sort);
+  }
+
+  if (search) {
+    params.set("search", search);
+  }
+
+  const query = params.toString();
+
+  return query
+    ? `/shop?${query}`
+    : "/shop";
+}
 
 export default async function ShopPage({
   searchParams,
 }: ShopPageProps) {
-
-
   const params = await searchParams;
 
-
   const category =
-    params.category || undefined;
+    params.category?.trim() || undefined;
 
+  const search =
+    params.search?.trim() || undefined;
 
-  const sort =
+  const sort: ProductSort =
     params.sort === "price-asc" ||
     params.sort === "price-desc"
       ? params.sort
       : "newest";
-
 
   const [
     categories,
@@ -55,299 +91,148 @@ export default async function ShopPage({
     getCategories(),
     getProducts({
       category,
-      sort: sort as
-        | "newest"
-        | "price-asc"
-        | "price-desc",
+      sort,
+      search,
     }),
   ]);
 
-
-
   return (
-
-    <main
-      dir="rtl"
-      className="
-        mx-auto
-        max-w-7xl
-        px-4
-        py-12
-        sm:px-6
-        lg:px-8
-      "
-    >
-
-
-      <section
-        className="
-          mx-auto
-          mb-10
-          max-w-2xl
-          rounded-2xl
-          border
-          bg-background
-          p-8
-          text-center
-        "
-      >
-
-        <p
-          className="
-            mb-2
-            text-xs
-            tracking-[0.3em]
-            text-muted-foreground
-          "
-        >
-          مجموعة مختارة
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <header className="mx-auto mb-10 max-w-2xl text-center">
+        <p className="mb-2 text-sm font-semibold text-primary">
+          مصاحف وكتب إسلامية
         </p>
 
-
-        <h1
-          className="
-            text-3xl
-            font-bold
-          "
-        >
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
           المتجر
         </h1>
 
-
-        <p
-          className="
-            mt-3
-            text-sm
-            text-muted-foreground
-          "
-        >
-          اكتشف أحدث تشكيلات الملابس
+        <p className="mt-3 text-sm leading-7 text-muted-foreground">
+          تصفح مجموعتنا واختر الكتاب المناسب لك.
         </p>
-
-
-      </section>
-
-
-
-
+      </header>
 
       <section className="mb-8 space-y-5">
-
-
-        <div
-          className="
-            flex
-            flex-wrap
-            items-center
-            justify-between
-            gap-4
-          "
-        >
-
-
-          <div
-            className="
-              flex
-              flex-wrap
-              gap-2
-            "
+        {/* Categories */}
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={buildShopHref({
+              sort,
+              search,
+            })}
+            className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+              !category
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border hover:bg-accent hover:text-accent-foreground"
+            }`}
           >
+            الكل
+          </Link>
 
-            <a
-              href="/shop"
-              className={`
-                rounded-full
-                border
-                px-4
-                py-2
-                text-sm
-                ${
-                  !category
-                    ? "bg-black text-white dark:bg-white dark:text-black"
-                    : "hover:bg-muted"
-                }
-              `}
+          {categories.map((item) => (
+            <Link
+              key={item.id}
+              href={buildShopHref({
+                category: item.slug,
+                sort,
+                search,
+              })}
+              className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                category === item.slug
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border hover:bg-accent hover:text-accent-foreground"
+              }`}
             >
-              الكل
-            </a>
-
-
-            {categories.map((item) => (
-
-              <a
-                key={item.id}
-                href={`/shop?category=${item.slug}`}
-                className={`
-                  rounded-full
-                  border
-                  px-4
-                  py-2
-                  text-sm
-                  ${
-                    category === item.slug
-                      ? "bg-black text-white dark:bg-white dark:text-black"
-                      : "hover:bg-muted"
-                  }
-                `}
-              >
-                {item.name}
-              </a>
-
-            ))}
-
-
-          </div>
-
-
-
-
-
-          <form
-            method="GET"
-            className="
-              flex
-              items-center
-              gap-2
-            "
-          >
-
-
-            {category && (
-
-              <input
-                type="hidden"
-                name="category"
-                value={category}
-              />
-
-            )}
-
-
-
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="
-                rounded-full
-                border
-                bg-background
-                px-4
-                py-2
-                text-sm
-              "
-            >
-
-              {sortOptions.map((option)=>(
-
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-
-              ))}
-
-            </select>
-
-
-
-            <button
-              type="submit"
-              className="
-                rounded-full
-                border
-                px-4
-                py-2
-                text-sm
-              "
-            >
-              تطبيق
-            </button>
-
-
-          </form>
-
-
+              {item.name}
+            </Link>
+          ))}
         </div>
 
-
-
-        <p
-          className="
-            text-sm
-            text-muted-foreground
-          "
+        {/* Search and sorting */}
+        <form
+          method="GET"
+          action="/shop"
+          className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
         >
-          {products.length} منتج
-        </p>
+          {category ? (
+            <input
+              type="hidden"
+              name="category"
+              value={category}
+            />
+          ) : null}
 
+          <input
+            type="search"
+            name="search"
+            defaultValue={search ?? ""}
+            placeholder="ابحث باسم الكتاب أو الناشر"
+            className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          />
 
-      </section>
-
-
-
-
-
-
-      {products.length === 0 ? (
-
-        <section
-          className="
-            rounded-2xl
-            border
-            py-20
-            text-center
-          "
-        >
-
-          <h2
-            className="
-              text-xl
-              font-semibold
-            "
+          <select
+            name="sort"
+            defaultValue={sort}
+            aria-label="ترتيب الكتب"
+            className="h-11 rounded-xl border border-input bg-background px-4 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
-            لا توجد منتجات
-          </h2>
+            {sortOptions.map((option) => (
+              <option
+                key={option.value}
+                value={option.value}
+              >
+                {option.label}
+              </option>
+            ))}
+          </select>
 
+          <button
+            type="submit"
+            className="h-11 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            تطبيق
+          </button>
+        </form>
 
-          <p className="mt-2 text-muted-foreground">
-            جرّب تغيير التصنيف
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            {products.length} كتاب
           </p>
 
+          {search ? (
+            <Link
+              href={buildShopHref({
+                category,
+                sort,
+              })}
+              className="text-sm font-semibold text-primary hover:underline"
+            >
+              مسح البحث
+            </Link>
+          ) : null}
+        </div>
+      </section>
 
+      {products.length === 0 ? (
+        <section className="rounded-2xl border border-dashed border-border py-20 text-center">
+          <h2 className="text-xl font-semibold">
+            لا توجد كتب
+          </h2>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            جرّب تغيير التصنيف أو عبارة البحث.
+          </p>
         </section>
-
-
       ) : (
-
-
-        <section
-          className="
-            grid
-            grid-cols-2
-            gap-4
-            md:grid-cols-4
-          "
-        >
-
-          {products.map((product)=>(
-
+        <section className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
+          {products.map((product) => (
             <ProductCard
               key={product.id}
               product={product}
             />
-
           ))}
-
-
         </section>
-
-
       )}
-
-
     </main>
-
   );
 }
