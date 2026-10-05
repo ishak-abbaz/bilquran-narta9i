@@ -55,7 +55,7 @@ export default function AdminSideBar() {
           </p>
 
           <p className="mt-2 text-xl font-bold">
-            لوحة التحكم
+            [YOUR STORE NAME]
           </p>
         </div>
 
@@ -66,7 +66,9 @@ export default function AdminSideBar() {
             const isActive = item.exact
               ? pathname === item.href
               : pathname === item.href ||
-                pathname.startsWith(`${item.href}/`);
+                pathname.startsWith(
+                  `${item.href}/`,
+                );
 
             return (
               <Link
@@ -74,8 +76,8 @@ export default function AdminSideBar() {
                 href={item.href}
                 className={`flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${
                   isActive
-                    ? "bg-foreground text-background"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 }`}
               >
                 <Icon

@@ -4,19 +4,13 @@ import Link from "next/link";
 import {
   Menu,
   Moon,
-  ShoppingBag,
   Sun,
 } from "lucide-react";
-
-import {
-  useTheme,
-} from "next-themes";
-
+import { useTheme } from "next-themes";
 import {
   useEffect,
   useState,
 } from "react";
-
 
 import {
   Sheet,
@@ -26,20 +20,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-
-import {
-  useCartStore,
-  getTotalItems,
-} from "@/store/cart";
-
-
 const links = [
   {
     label: "الرئيسية",
     href: "/",
   },
   {
-    label: "المتجر",
+    label: "المصاحف والكتب",
     href: "/shop",
   },
   {
@@ -52,59 +39,30 @@ const links = [
   },
 ];
 
-
-
 export default function Header() {
-
   const {
-    theme,
+    resolvedTheme,
     setTheme,
   } = useTheme();
-
 
   const [
     mounted,
     setMounted,
   ] = useState(false);
 
-
-
-  const items =
-    useCartStore(
-      state => state.items,
-    );
-
-
-
   useEffect(() => {
-
     setMounted(true);
-
   }, []);
 
-
-
-  const toggleTheme = () => {
-
+  function toggleTheme() {
     setTheme(
-      theme === "dark"
+      resolvedTheme === "dark"
         ? "light"
         : "dark",
     );
-
-  };
-
-
-
-  const cartCount =
-    mounted
-      ? getTotalItems(items)
-      : 0;
-
-
+  }
 
   return (
-
     <header
       className="
         sticky
@@ -115,7 +73,6 @@ export default function Header() {
         backdrop-blur
       "
     >
-
       <div
         className="
           mx-auto
@@ -127,9 +84,6 @@ export default function Header() {
           px-6
         "
       >
-
-
-
         <Link
           href="/"
           className="
@@ -138,11 +92,8 @@ export default function Header() {
             tracking-[0.35em]
           "
         >
-          ASTRA
+          [YOUR STORE NAME]
         </Link>
-
-
-
 
         <nav
           className="
@@ -152,37 +103,23 @@ export default function Header() {
             md:flex
           "
         >
-
-          {
-            links.map(
-              link => (
-
-                <Link
-                  key={
-                    link.href
-                  }
-                  href={
-                    link.href
-                  }
-                  className="
-                    text-sm
-                    font-medium
-                    transition-opacity
-                    hover:opacity-60
-                  "
-                >
-                  {link.label}
-                </Link>
-
-              )
-            )
-          }
-
+          {links.map(
+            (link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="
+                  text-sm
+                  font-medium
+                  transition-colors
+                  hover:text-primary
+                "
+              >
+                {link.label}
+              </Link>
+            ),
+          )}
         </nav>
-
-
-
-
 
         <div
           className="
@@ -191,16 +128,9 @@ export default function Header() {
             gap-3
           "
         >
-
-
           <button
-
-            onClick={
-              toggleTheme
-            }
-
-            aria-label="تغيير الوضع"
-
+            type="button"
+            onClick={toggleTheme}
             className="
               flex
               size-11
@@ -208,74 +138,40 @@ export default function Header() {
               justify-center
               rounded-full
               border
+              border-border
+              bg-background
+              transition-colors
+              hover:bg-accent
+              hover:text-accent-foreground
+              focus-visible:outline-none
+              focus-visible:ring-2
+              focus-visible:ring-ring
+              focus-visible:ring-offset-2
+              focus-visible:ring-offset-background
             "
-
-          >
-
-            {
-              mounted &&
-              theme === "dark"
-
-              ?
-
-              <Sun size={18}/>
-
-              :
-
-              <Moon size={18}/>
-
+            aria-label={
+              resolvedTheme === "dark"
+                ? "تفعيل الوضع الفاتح"
+                : "تفعيل الوضع الداكن"
             }
-
+          >
+            {mounted &&
+            resolvedTheme === "dark" ? (
+              <Sun
+                size={19}
+                aria-hidden="true"
+              />
+            ) : (
+              <Moon
+                size={19}
+                aria-hidden="true"
+              />
+            )}
           </button>
 
-
-
-
-
-          <Link
-
-            href="/checkout"
-
-            className="
-              hidden
-              items-center
-              gap-2
-              rounded-full
-              bg-black
-              px-5
-              py-3
-              text-sm
-              text-white
-              transition
-              hover:opacity-80
-              dark:bg-white
-              dark:text-black
-              md:flex
-            "
-
-          >
-
-            <ShoppingBag size={17}/>
-
-            السلة ({cartCount})
-
-          </Link>
-
-
-
-
-
-
-          <div
-            className="
-              md:hidden
-            "
-          >
-
+          <div className="md:hidden">
             <Sheet>
-
               <SheetTrigger
-
                 className="
                   flex
                   size-11
@@ -283,36 +179,28 @@ export default function Header() {
                   justify-center
                   rounded-full
                   border
+                  border-border
+                  transition-colors
+                  hover:bg-accent
+                  hover:text-accent-foreground
+                  focus-visible:outline-none
+                  focus-visible:ring-2
+                  focus-visible:ring-ring
                 "
-
                 aria-label="القائمة"
-
               >
-
-                <Menu size={20}/>
-
+                <Menu size={20} />
               </SheetTrigger>
-
-
 
               <SheetContent
                 side="right"
                 className="w-80"
               >
-
                 <SheetHeader>
-
-                  <SheetTitle
-                    className="
-                      text-end
-                    "
-                  >
-                    ASTRA
+                  <SheetTitle className="text-end">
+                    [YOUR STORE NAME]
                   </SheetTitle>
-
                 </SheetHeader>
-
-
 
                 <nav
                   className="
@@ -323,76 +211,27 @@ export default function Header() {
                     text-end
                   "
                 >
-
-
-                  {
-                    links.map(
-                      link => (
-
-                        <Link
-                          key={
-                            link.href
-                          }
-                          href={
-                            link.href
-                          }
-                          className="
-                            text-lg
-                          "
-                        >
-
-                          {link.label}
-
-                        </Link>
-
-                      )
-                    )
-                  }
-
-
-
-                  <Link
-
-                    href="/checkout"
-
-                    className="
-                      rounded-full
-                      bg-black
-                      px-5
-                      py-3
-                      text-center
-                      text-white
-                      dark:bg-white
-                      dark:text-black
-                    "
-
-                  >
-
-                    السلة ({cartCount})
-
-                  </Link>
-
-
+                  {links.map(
+                    (link) => (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        className="
+                          text-lg
+                          transition-colors
+                          hover:text-primary
+                        "
+                      >
+                        {link.label}
+                      </Link>
+                    ),
+                  )}
                 </nav>
-
-
               </SheetContent>
-
-
             </Sheet>
-
           </div>
-
-
-
         </div>
-
-
       </div>
-
-
     </header>
-
   );
-
 }

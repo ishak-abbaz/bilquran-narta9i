@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import {
   initialContactActionState,
   sendContactMessage,
-} from "@/contact/actions";
+} from "@/app/(store)/contact/actions";
 
 export function ContactForm() {
   const formRef =

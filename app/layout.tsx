@@ -11,8 +11,9 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  title: "متجري | متجر الملابس",
-  description: "متجر ملابس جزائري بتصميم عصري وخدمة الدفع عند الاستلام.",
+  title: "[YOUR STORE NAME] | مصاحف وكتب إسلامية في الجزائر",
+  description:
+    "متجر جزائري لبيع المصاحف والكتب الإسلامية بتشكيلة مختارة بعناية وخدمة الدفع عند الاستلام.",
 };
 
 export default function RootLayout({
@@ -28,8 +29,7 @@ export default function RootLayout({
       className={`${cairo.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">
-        <ThemeProvider
-        >
+        <ThemeProvider>
           {children}
           <Toaster richColors position="top-center" />
         </ThemeProvider>
