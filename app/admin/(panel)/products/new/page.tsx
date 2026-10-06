@@ -3,9 +3,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { ProductForm } from "@/components/admin/product-form";
-import { requireAdmin } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import {
+  ProductForm,
+} from "@/components/admin/product-form";
+import {
+  requireAdmin,
+} from "@/lib/auth";
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
 type Category = {
   id: string;
@@ -19,25 +25,33 @@ export default async function NewProductPage() {
     await createClient();
 
   const {
-    data: categoriesData,
-    error: categoriesError,
+    data:
+      categoriesData,
+    error:
+      categoriesError,
   } = await supabase
     .from("categories")
-    .select("id, name")
+    .select(
+      "id, name",
+    )
     .order(
       "sort_order",
       {
-        ascending: true,
+        ascending:
+          true,
       },
     )
     .order(
       "name",
       {
-        ascending: true,
+        ascending:
+          true,
       },
     );
 
-  if (categoriesError) {
+  if (
+    categoriesError
+  ) {
     console.error(
       "فشل تحميل التصنيفات:",
       categoriesError,
@@ -49,7 +63,10 @@ export default async function NewProductPage() {
   }
 
   const categories =
-    (categoriesData ?? []) as Category[];
+    (
+      categoriesData ??
+      []
+    ) as Category[];
 
   return (
     <main className="w-full">
@@ -63,26 +80,30 @@ export default async function NewProductPage() {
               className="size-4"
               aria-hidden="true"
             />
-            العودة إلى المنتجات
+
+            العودة إلى الكتب
           </Link>
 
           <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-muted-foreground">
-            إدارة المنتجات
+            إدارة الكتب
           </p>
 
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            إضافة منتج
+            إضافة كتاب
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-            أضف معلومات المنتج والسعر
-            والمخزون والصور وخيارات العرض.
+            أضف بيانات الكتاب والناشر
+            والرواية والسعر والمخزون
+            والصور.
           </p>
         </header>
 
         <ProductForm
           mode="create"
-          categories={categories}
+          categories={
+            categories
+          }
         />
       </div>
     </main>

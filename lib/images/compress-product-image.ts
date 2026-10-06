@@ -3,7 +3,7 @@
 export const MAX_PRODUCT_IMAGE_BYTES =
   3 * 1024 * 1024;
 
-export const MAX_PRODUCT_IMAGE_COUNT = 10;
+export const MAX_PRODUCT_IMAGE_COUNT = 3;
 
 export const ALLOWED_PRODUCT_IMAGE_TYPES = [
   "image/jpeg",
@@ -16,52 +16,68 @@ const MAX_IMAGE_DIMENSION = 1800;
 function loadImage(
   file: File,
 ): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
+  return new Promise(
+    (resolve, reject) => {
+      const image =
+        new Image();
 
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve(image);
-    };
+      const objectUrl =
+        URL.createObjectURL(
+          file,
+        );
 
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
+      image.onload = () => {
+        URL.revokeObjectURL(
+          objectUrl,
+        );
 
-      reject(
-        new Error(
-          "تعذر قراءة ملف الصورة.",
-        ),
-      );
-    };
+        resolve(image);
+      };
 
-    image.src = objectUrl;
-  });
+      image.onerror = () => {
+        URL.revokeObjectURL(
+          objectUrl,
+        );
+
+        reject(
+          new Error(
+            "تعذر قراءة ملف الصورة.",
+          ),
+        );
+      };
+
+      image.src =
+        objectUrl;
+    },
+  );
 }
 
 function canvasToBlob(
-  canvas: HTMLCanvasElement,
+  canvas:
+    HTMLCanvasElement,
   quality: number,
 ): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          reject(
-            new Error(
-              "تعذر ضغط الصورة.",
-            ),
-          );
+  return new Promise(
+    (resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(
+              new Error(
+                "تعذر ضغط الصورة.",
+              ),
+            );
 
-          return;
-        }
+            return;
+          }
 
-        resolve(blob);
-      },
-      "image/webp",
-      quality,
-    );
-  });
+          resolve(blob);
+        },
+        "image/webp",
+        quality,
+      );
+    },
+  );
 }
 
 export async function prepareProductImage(
@@ -69,7 +85,8 @@ export async function prepareProductImage(
 ): Promise<File> {
   if (
     !ALLOWED_PRODUCT_IMAGE_TYPES.includes(
-      file.type as (typeof ALLOWED_PRODUCT_IMAGE_TYPES)[number],
+      file.type as
+        (typeof ALLOWED_PRODUCT_IMAGE_TYPES)[number],
     )
   ) {
     throw new Error(
@@ -86,31 +103,51 @@ export async function prepareProductImage(
     );
   }
 
-  const image = await loadImage(file);
+  const image =
+    await loadImage(
+      file,
+    );
 
-  const scale = Math.min(
-    1,
-    MAX_IMAGE_DIMENSION / image.width,
-    MAX_IMAGE_DIMENSION / image.height,
-  );
+  const scale =
+    Math.min(
+      1,
+      MAX_IMAGE_DIMENSION /
+        image.width,
+      MAX_IMAGE_DIMENSION /
+        image.height,
+    );
 
-  const width = Math.max(
-    1,
-    Math.round(image.width * scale),
-  );
+  const width =
+    Math.max(
+      1,
+      Math.round(
+        image.width *
+          scale,
+      ),
+    );
 
-  const height = Math.max(
-    1,
-    Math.round(image.height * scale),
-  );
+  const height =
+    Math.max(
+      1,
+      Math.round(
+        image.height *
+          scale,
+      ),
+    );
 
   const canvas =
-    document.createElement("canvas");
+    document.createElement(
+      "canvas",
+    );
 
   canvas.width = width;
-  canvas.height = height;
+  canvas.height =
+    height;
 
-  const context = canvas.getContext("2d");
+  const context =
+    canvas.getContext(
+      "2d",
+    );
 
   if (!context) {
     throw new Error(
@@ -126,19 +163,21 @@ export async function prepareProductImage(
     height,
   );
 
-  let blob = await canvasToBlob(
-    canvas,
-    0.82,
-  );
+  let blob =
+    await canvasToBlob(
+      canvas,
+      0.82,
+    );
 
   if (
     blob.size >
     MAX_PRODUCT_IMAGE_BYTES
   ) {
-    blob = await canvasToBlob(
-      canvas,
-      0.65,
-    );
+    blob =
+      await canvasToBlob(
+        canvas,
+        0.65,
+      );
   }
 
   if (
@@ -151,14 +190,18 @@ export async function prepareProductImage(
   }
 
   const originalBaseName =
-    file.name.replace(/\.[^.]+$/, "");
+    file.name.replace(
+      /\.[^.]+$/,
+      "",
+    );
 
   return new File(
     [blob],
     `${originalBaseName}.webp`,
     {
       type: "image/webp",
-      lastModified: Date.now(),
+      lastModified:
+        Date.now(),
     },
   );
 }

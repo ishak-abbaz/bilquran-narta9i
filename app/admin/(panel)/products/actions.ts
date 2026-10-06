@@ -1,18 +1,29 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import "server-only";
+
+import {
+  revalidatePath,
+} from "next/cache";
 import { z } from "zod";
 
-import { requireAdmin } from "@/lib/auth";
+import {
+  requireAdmin,
+} from "@/lib/auth";
 import {
   productFormSchema,
   type ProductFormValues,
 } from "@/lib/products/product-schema";
-import { createClient } from "@/lib/supabase/server";
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
-const productIdSchema = z
-  .string()
-  .uuid("معرّف المنتج غير صالح.");
+const productIdSchema =
+  z
+    .string()
+    .uuid(
+      "معرّف الكتاب غير صالح.",
+    );
 
 export type ProductActionResult =
   | {
@@ -36,9 +47,12 @@ export type DeleteProductResult =
       message: string;
     };
 
-type SupabaseServerClient = Awaited<
-  ReturnType<typeof createClient>
->;
+type SupabaseServerClient =
+  Awaited<
+    ReturnType<
+      typeof createClient
+    >
+  >;
 
 type ProductSnapshot = {
   slug: string;
@@ -48,15 +62,20 @@ type ProductSnapshot = {
 function normalizeImageUrls(
   value: unknown,
 ): string[] {
-  if (!Array.isArray(value)) {
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
     return [];
   }
 
-  const items: unknown[] = value;
-
-  return items.filter(
-    (item): item is string =>
-      typeof item === "string",
+  return value.filter(
+    (
+      item,
+    ): item is string =>
+      typeof item ===
+      "string",
   );
 }
 
@@ -65,21 +84,26 @@ function getProductStoragePath(
 ): string | null {
   try {
     const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL;
+      process.env
+        .NEXT_PUBLIC_SUPABASE_URL;
 
     if (!supabaseUrl) {
       return null;
     }
 
-    const parsedSupabaseUrl =
-      new URL(supabaseUrl);
+    const projectUrl =
+      new URL(
+        supabaseUrl,
+      );
 
-    const parsedPublicUrl =
-      new URL(publicUrl);
+    const imageUrl =
+      new URL(
+        publicUrl,
+      );
 
     if (
-      parsedSupabaseUrl.origin !==
-      parsedPublicUrl.origin
+      projectUrl.origin !==
+      imageUrl.origin
     ) {
       return null;
     }
@@ -88,7 +112,7 @@ function getProductStoragePath(
       "/storage/v1/object/public/products/";
 
     if (
-      !parsedPublicUrl.pathname.startsWith(
+      !imageUrl.pathname.startsWith(
         prefix,
       )
     ) {
@@ -96,7 +120,7 @@ function getProductStoragePath(
     }
 
     const encodedPath =
-      parsedPublicUrl.pathname.slice(
+      imageUrl.pathname.slice(
         prefix.length,
       );
 
@@ -117,41 +141,50 @@ function validateProductImageUrls(
 ): boolean {
   return images.every(
     (url) =>
-      getProductStoragePath(url) !== null,
+      getProductStoragePath(
+        url,
+      ) !== null,
   );
 }
 
 async function removeProductImages(
-  supabase: SupabaseServerClient,
+  supabase:
+    SupabaseServerClient,
   urls: string[],
 ) {
-  const paths = Array.from(
-    new Set(
-      urls
-        .map(
-          getProductStoragePath,
-        )
-        .filter(
-          (
-            path,
-          ): path is string =>
-            path !== null,
-        ),
-    ),
-  );
+  const paths =
+    Array.from(
+      new Set(
+        urls
+          .map(
+            getProductStoragePath,
+          )
+          .filter(
+            (
+              path,
+            ): path is string =>
+              path !== null,
+          ),
+      ),
+    );
 
-  if (paths.length === 0) {
+  if (
+    paths.length ===
+    0
+  ) {
     return;
   }
 
-  const { error } =
-    await supabase.storage
-      .from("products")
-      .remove(paths);
+  const {
+    error,
+  } = await supabase
+    .storage
+    .from("products")
+    .remove(paths);
 
   if (error) {
     console.error(
-      "تعذر تنظيف صور المنتج من Storage:",
+      "تعذر تنظيف صور الكتاب من Storage:",
       error,
     );
   }
@@ -164,6 +197,7 @@ function revalidateProductPages(
 ) {
   revalidatePath("/");
   revalidatePath("/shop");
+
   revalidatePath(
     "/admin/products",
   );
@@ -173,33 +207,43 @@ function revalidateProductPages(
       (
         value,
       ): value is string =>
-        typeof value === "string" &&
+        typeof value ===
+          "string" &&
         value.length > 0,
     );
 
-  for (const slug of new Set(
-    validSlugs,
-  )) {
+  for (
+    const slug of
+      new Set(
+        validSlugs,
+      )
+  ) {
     revalidatePath(
-      `/shop/${slug}`,
+      `/product/${slug}`,
     );
   }
 }
 
-function getDatabaseErrorMessage(
+function getSaveErrorMessage(
   error: {
     code?: string;
   },
 ): string {
-  if (error.code === "23505") {
-    return "الرابط المختصر مستخدم من منتج آخر.";
+  if (
+    error.code ===
+    "23505"
+  ) {
+    return "الرابط المختصر مستخدم من كتاب آخر.";
   }
 
-  if (error.code === "23503") {
+  if (
+    error.code ===
+    "23503"
+  ) {
     return "التصنيف المحدد غير موجود.";
   }
 
-  return "حدث خطأ أثناء حفظ المنتج.";
+  return "حدث خطأ أثناء حفظ الكتاب.";
 }
 
 export async function createProduct(
@@ -216,9 +260,26 @@ export async function createProduct(
     return {
       success: false,
       message:
-        parsed.error.issues[0]
+        parsed.error
+          .issues[0]
           ?.message ??
-        "بيانات المنتج غير صالحة.",
+        "بيانات الكتاب غير صالحة.",
+    };
+  }
+
+  /*
+   * Defense in depth.
+   * Zod already limits this to 3.
+   */
+  if (
+    parsed.data
+      .images.length >
+    3
+  ) {
+    return {
+      success: false,
+      message:
+        "لا يمكن إضافة أكثر من 3 صور للكتاب.",
     };
   }
 
@@ -230,55 +291,80 @@ export async function createProduct(
     return {
       success: false,
       message:
-        "إحدى الصور لا تنتمي إلى مخزن المنتجات.",
+        "إحدى الصور لا تنتمي إلى مخزن صور الكتب.",
     };
   }
 
   const supabase =
     await createClient();
 
-  const { data, error } =
-    await supabase
-      .from("products")
-      .insert({
-        name: parsed.data.name,
-        slug: parsed.data.slug,
-        description:
-          parsed.data.description ||
-          null,
-        price: parsed.data.price,
-        compare_at_price:
-          parsed.data
-            .compare_at_price,
-        category_id:
-          parsed.data.category_id ||
-          null,
-        images:
-          parsed.data.images,
-        sizes:
-          parsed.data.sizes,
-        colors:
-          parsed.data.colors,
-        stock:
-          parsed.data.stock,
-        is_featured:
-          parsed.data.is_featured,
-        is_active:
-          parsed.data.is_active,
-      })
-      .select("id, slug")
-      .single();
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .insert({
+      name:
+        parsed.data.name,
 
-  if (error || !data) {
+      slug:
+        parsed.data.slug,
+
+      description:
+        parsed.data
+          .description ||
+        null,
+
+      publisher:
+        parsed.data
+          .publisher ||
+        null,
+
+      riwaya:
+        parsed.data
+          .riwaya ||
+        null,
+
+      price:
+        parsed.data.price,
+
+      category_id:
+        parsed.data
+          .category_id ||
+        null,
+
+      images:
+        parsed.data.images,
+
+      stock:
+        parsed.data.stock,
+
+      is_featured:
+        parsed.data
+          .is_featured,
+
+      is_active:
+        parsed.data
+          .is_active,
+    })
+    .select(
+      "id, slug",
+    )
+    .single();
+
+  if (
+    error ||
+    !data
+  ) {
     console.error(
-      "فشل إنشاء المنتج:",
+      "فشل إنشاء الكتاب:",
       error,
     );
 
     return {
       success: false,
       message:
-        getDatabaseErrorMessage(
+        getSaveErrorMessage(
           error ?? {},
         ),
     };
@@ -295,9 +381,11 @@ export async function createProduct(
   return {
     success: true,
     message:
-      "تم إنشاء المنتج بنجاح.",
-    productId: data.id,
-    slug: data.slug,
+      "تم إنشاء الكتاب بنجاح.",
+    productId:
+      data.id,
+    slug:
+      data.slug,
   };
 }
 
@@ -318,9 +406,7 @@ export async function updateProduct(
     return {
       success: false,
       message:
-        parsedProductId.error
-          .issues[0]?.message ??
-        "معرّف المنتج غير صالح.",
+        "معرّف الكتاب غير صالح.",
     };
   }
 
@@ -333,9 +419,22 @@ export async function updateProduct(
     return {
       success: false,
       message:
-        parsed.error.issues[0]
+        parsed.error
+          .issues[0]
           ?.message ??
-        "بيانات المنتج غير صالحة.",
+        "بيانات الكتاب غير صالحة.",
+    };
+  }
+
+  if (
+    parsed.data
+      .images.length >
+    3
+  ) {
+    return {
+      success: false,
+      message:
+        "لا يمكن إضافة أكثر من 3 صور للكتاب.",
     };
   }
 
@@ -347,7 +446,7 @@ export async function updateProduct(
     return {
       success: false,
       message:
-        "إحدى الصور لا تنتمي إلى مخزن المنتجات.",
+        "إحدى الصور لا تنتمي إلى مخزن صور الكتب.",
     };
   }
 
@@ -356,9 +455,9 @@ export async function updateProduct(
 
   const {
     data:
-      existingProductData,
+      existingData,
     error:
-      existingProductError,
+      existingError,
   } = await supabase
     .from("products")
     .select(
@@ -371,102 +470,116 @@ export async function updateProduct(
     .maybeSingle();
 
   if (
-    existingProductError ||
-    !existingProductData
+    existingError ||
+    !existingData
   ) {
     return {
       success: false,
       message:
-        "المنتج غير موجود.",
+        "الكتاب غير موجود.",
     };
   }
 
-  const existingProduct: ProductSnapshot =
-    {
-      slug: String(
-        existingProductData.slug,
+  const existing:
+    ProductSnapshot = {
+    slug:
+      String(
+        existingData.slug,
       ),
 
+    images:
+      normalizeImageUrls(
+        existingData.images,
+      ),
+  };
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .update({
+      name:
+        parsed.data.name,
+
+      slug:
+        parsed.data.slug,
+
+      description:
+        parsed.data
+          .description ||
+        null,
+
+      publisher:
+        parsed.data
+          .publisher ||
+        null,
+
+      riwaya:
+        parsed.data
+          .riwaya ||
+        null,
+
+      price:
+        parsed.data.price,
+
+      category_id:
+        parsed.data
+          .category_id ||
+        null,
+
       images:
-        normalizeImageUrls(
-          existingProductData.images,
-        ),
-    };
+        parsed.data.images,
 
-  const { data, error } =
-    await supabase
-      .from("products")
-      .update({
-        name:
-          parsed.data.name,
+      stock:
+        parsed.data.stock,
 
-        slug:
-          parsed.data.slug,
+      is_featured:
+        parsed.data
+          .is_featured,
 
-        description:
-          parsed.data.description ||
-          null,
+      is_active:
+        parsed.data
+          .is_active,
+    })
+    .eq(
+      "id",
+      parsedProductId.data,
+    )
+    .select(
+      "id, slug",
+    )
+    .single();
 
-        price:
-          parsed.data.price,
-
-        compare_at_price:
-          parsed.data
-            .compare_at_price,
-
-        category_id:
-          parsed.data.category_id ||
-          null,
-
-        images:
-          parsed.data.images,
-
-        sizes:
-          parsed.data.sizes,
-
-        colors:
-          parsed.data.colors,
-
-        stock:
-          parsed.data.stock,
-
-        is_featured:
-          parsed.data.is_featured,
-
-        is_active:
-          parsed.data.is_active,
-      })
-      .eq(
-        "id",
-        parsedProductId.data,
-      )
-      .select("id, slug")
-      .single();
-
-  if (error || !data) {
+  if (
+    error ||
+    !data
+  ) {
     console.error(
-      "فشل تحديث المنتج:",
+      "فشل تحديث الكتاب:",
       error,
     );
 
     return {
       success: false,
       message:
-        getDatabaseErrorMessage(
+        getSaveErrorMessage(
           error ?? {},
         ),
     };
   }
 
   const nextImages =
-    new Set<string>(
+    new Set(
       parsed.data.images,
     );
 
   const removedImages =
-    existingProduct.images.filter(
+    existing.images.filter(
       (url) =>
-        !nextImages.has(url),
+        !nextImages.has(
+          url,
+        ),
     );
 
   await removeProductImages(
@@ -475,8 +588,8 @@ export async function updateProduct(
   );
 
   revalidateProductPages(
+    existing.slug,
     data.slug,
-    existingProduct.slug,
   );
 
   revalidatePath(
@@ -486,9 +599,11 @@ export async function updateProduct(
   return {
     success: true,
     message:
-      "تم تحديث المنتج بنجاح.",
-    productId: data.id,
-    slug: data.slug,
+      "تم تحديث الكتاب بنجاح.",
+    productId:
+      data.id,
+    slug:
+      data.slug,
   };
 }
 
@@ -508,7 +623,7 @@ export async function deleteProduct(
     return {
       success: false,
       message:
-        "معرّف المنتج غير صالح.",
+        "معرّف الكتاب غير صالح.",
     };
   }
 
@@ -516,8 +631,10 @@ export async function deleteProduct(
     await createClient();
 
   const {
-    data: productData,
-    error: productError,
+    data:
+      productData,
+    error:
+      productError,
   } = await supabase
     .from("products")
     .select(
@@ -536,44 +653,63 @@ export async function deleteProduct(
     return {
       success: false,
       message:
-        "المنتج غير موجود أو تم حذفه مسبقاً.",
+        "الكتاب غير موجود أو تم حذفه مسبقاً.",
     };
   }
 
-  const product: ProductSnapshot =
-    {
-      slug: String(
+  const product:
+    ProductSnapshot = {
+    slug:
+      String(
         productData.slug,
       ),
 
-      images:
-        normalizeImageUrls(
-          productData.images,
-        ),
-    };
+    images:
+      normalizeImageUrls(
+        productData.images,
+      ),
+  };
 
-  const { error: deleteError } =
-    await supabase
-      .from("products")
-      .delete()
-      .eq(
-        "id",
-        parsedProductId.data,
-      );
+  const {
+    error:
+      deleteError,
+  } = await supabase
+    .from("products")
+    .delete()
+    .eq(
+      "id",
+      parsedProductId.data,
+    );
 
   if (deleteError) {
     console.error(
-      "فشل حذف المنتج:",
+      "فشل حذف الكتاب:",
       deleteError,
     );
+
+    if (
+      deleteError.code ===
+      "23503"
+    ) {
+      return {
+        success: false,
+        message:
+          "لا يمكن حذف الكتاب لأنه مرتبط ببيانات أخرى في النظام.",
+      };
+    }
 
     return {
       success: false,
       message:
-        "تعذر حذف المنتج. حاول مرة أخرى.",
+        "تعذر حذف الكتاب. حاول مرة أخرى.",
     };
   }
 
+  /*
+   * order_items.product_id uses ON DELETE SET NULL,
+   * so previous orders retain product_name and do
+   * not prevent normal book deletion.
+   */
   await removeProductImages(
     supabase,
     product.images,
@@ -586,6 +722,6 @@ export async function deleteProduct(
   return {
     success: true,
     message:
-      "تم حذف المنتج بنجاح.",
+      "تم حذف الكتاب بنجاح.",
   };
 }

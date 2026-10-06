@@ -2,13 +2,23 @@ import {
   ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import {
+  notFound,
+} from "next/navigation";
 import { z } from "zod";
 
-import { ProductForm } from "@/components/admin/product-form";
-import { requireAdmin } from "@/lib/auth";
-import type { ProductFormValues } from "@/lib/products/product-schema";
-import { createClient } from "@/lib/supabase/server";
+import {
+  ProductForm,
+} from "@/components/admin/product-form";
+import {
+  requireAdmin,
+} from "@/lib/auth";
+import type {
+  ProductFormValues,
+} from "@/lib/products/product-schema";
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
 type EditProductPageProps = {
   params: Promise<{
@@ -25,16 +35,25 @@ type ProductRecord = {
   id: string;
   name: string;
   slug: string;
-  description: string | null;
+  description:
+    | string
+    | null;
+  publisher:
+    | string
+    | null;
+  riwaya:
+    | string
+    | null;
   price: number;
-  compare_at_price: number | null;
-  category_id: string | null;
-  images: string[] | null;
-  sizes: string[] | null;
-  colors: string[] | null;
-  stock: number | null;
-  is_featured: boolean | null;
-  is_active: boolean | null;
+  category_id:
+    | string
+    | null;
+  images:
+    | string[]
+    | null;
+  stock: number;
+  is_featured: boolean;
+  is_active: boolean;
 };
 
 const productIdSchema =
@@ -45,12 +64,18 @@ export default async function EditProductPage({
 }: EditProductPageProps) {
   await requireAdmin();
 
-  const { id } = await params;
+  const {
+    id,
+  } = await params;
 
   const parsedProductId =
-    productIdSchema.safeParse(id);
+    productIdSchema.safeParse(
+      id,
+    );
 
-  if (!parsedProductId.success) {
+  if (
+    !parsedProductId.success
+  ) {
     notFound();
   }
 
@@ -59,49 +84,54 @@ export default async function EditProductPage({
 
   const [
     {
-      data: categoriesData,
-      error: categoriesError,
+      data:
+        categoriesData,
+      error:
+        categoriesError,
     },
     {
-      data: productData,
-      error: productError,
+      data:
+        productData,
+      error:
+        productError,
     },
   ] = await Promise.all([
     supabase
       .from("categories")
-      .select("id, name")
+      .select(
+        "id, name",
+      )
       .order(
         "sort_order",
         {
-          ascending: true,
+          ascending:
+            true,
         },
       )
       .order(
         "name",
         {
-          ascending: true,
+          ascending:
+            true,
         },
       ),
 
     supabase
       .from("products")
-      .select(
-        `
-          id,
-          name,
-          slug,
-          description,
-          price,
-          compare_at_price,
-          category_id,
-          images,
-          sizes,
-          colors,
-          stock,
-          is_featured,
-          is_active
-        `,
-      )
+      .select(`
+        id,
+        name,
+        slug,
+        description,
+        publisher,
+        riwaya,
+        price,
+        category_id,
+        images,
+        stock,
+        is_featured,
+        is_active
+      `)
       .eq(
         "id",
         parsedProductId.data,
@@ -109,7 +139,9 @@ export default async function EditProductPage({
       .maybeSingle(),
   ]);
 
-  if (categoriesError) {
+  if (
+    categoriesError
+  ) {
     console.error(
       "فشل تحميل التصنيفات:",
       categoriesError,
@@ -120,47 +152,77 @@ export default async function EditProductPage({
     );
   }
 
-  if (productError) {
+  if (
+    productError
+  ) {
     console.error(
-      "فشل تحميل المنتج:",
+      "فشل تحميل الكتاب:",
       productError,
     );
 
     throw new Error(
-      "تعذر تحميل المنتج.",
+      "تعذر تحميل الكتاب.",
     );
   }
 
-  if (!productData) {
+  if (
+    !productData
+  ) {
     notFound();
   }
 
   const categories =
-    (categoriesData ?? []) as Category[];
+    (
+      categoriesData ??
+      []
+    ) as Category[];
 
   const product =
     productData as ProductRecord;
 
-  const initialValues: ProductFormValues =
-    {
-      name: product.name,
-      slug: product.slug,
-      description:
-        product.description ?? "",
-      category_id:
-        product.category_id ?? "",
-      price: product.price,
-      compare_at_price:
-        product.compare_at_price,
-      stock: product.stock ?? 0,
-      sizes: product.sizes ?? [],
-      colors: product.colors ?? [],
-      is_featured:
-        product.is_featured === true,
-      is_active:
-        product.is_active === true,
-      images: product.images ?? [],
-    };
+  const initialValues:
+    ProductFormValues = {
+    name:
+      product.name,
+
+    slug:
+      product.slug,
+
+    description:
+      product.description ??
+      "",
+
+    category_id:
+      product.category_id ??
+      "",
+
+    publisher:
+      product.publisher ??
+      "",
+
+    riwaya:
+      product.riwaya ??
+      "",
+
+    price:
+      product.price,
+
+    stock:
+      product.stock ??
+      0,
+
+    is_featured:
+      product.is_featured ===
+      true,
+
+    is_active:
+      product.is_active ===
+      true,
+
+    images:
+      product.images ??
+      [],
+  };
 
   return (
     <main className="w-full">
@@ -174,27 +236,36 @@ export default async function EditProductPage({
               className="size-4"
               aria-hidden="true"
             />
-            العودة إلى المنتجات
+
+            العودة إلى الكتب
           </Link>
 
           <p className="mb-2 text-xs font-semibold tracking-[0.28em] text-muted-foreground">
-            إدارة المنتجات
+            إدارة الكتب
           </p>
 
           <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            تعديل المنتج
+            تعديل الكتاب
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
-            {product.name}
+            {
+              product.name
+            }
           </p>
         </header>
 
         <ProductForm
           mode="edit"
-          productId={product.id}
-          categories={categories}
-          initialValues={initialValues}
+          productId={
+            product.id
+          }
+          categories={
+            categories
+          }
+          initialValues={
+            initialValues
+          }
         />
       </div>
     </main>
