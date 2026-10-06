@@ -17,8 +17,49 @@ type DeliveryPriceRecord = {
   desk_price: number;
 };
 
+function assertCompleteWilayaList() {
+  const codes =
+    ALGERIA_WILAYAS.map(
+      (wilaya) =>
+        wilaya.code,
+    );
+
+  const uniqueCodes =
+    new Set(codes);
+
+  const hasAllCodes =
+    Array.from(
+      {
+        length: 58,
+      },
+      (
+        _,
+        index,
+      ) =>
+        index + 1,
+    ).every(
+      (code) =>
+        uniqueCodes.has(
+          code,
+        ),
+    );
+
+  if (
+    ALGERIA_WILAYAS.length !==
+      58 ||
+    uniqueCodes.size !== 58 ||
+    !hasAllCodes
+  ) {
+    throw new Error(
+      "قائمة الولايات يجب أن تحتوي على الولايات الـ58 بالرموز من 1 إلى 58.",
+    );
+  }
+}
+
 export default async function AdminSettingsPage() {
   await requireAdmin();
+
+  assertCompleteWilayaList();
 
   const supabase =
     await createClient();
@@ -122,15 +163,22 @@ export default async function AdminSettingsPage() {
     (deliveryData ??
       []) as DeliveryPriceRecord[];
 
-  const deliveryMap = new Map(
-    savedDeliveryPrices.map(
-      (row) => [
-        row.wilaya_code,
-        row,
-      ],
-    ),
-  );
+  const deliveryMap =
+    new Map(
+      savedDeliveryPrices.map(
+        (row) => [
+          row.wilaya_code,
+          row,
+        ],
+      ),
+    );
 
+  /*
+   * Always render all 58 wilayas.
+   * Saved database prices are used when present.
+   * Missing rows start at zero and can be saved
+   * individually from the editor.
+   */
   const initialDeliveryPrices =
     ALGERIA_WILAYAS.map(
       (wilaya) => {
@@ -142,13 +190,16 @@ export default async function AdminSettingsPage() {
         return {
           wilaya_code:
             wilaya.code,
+
           wilaya_name:
             wilaya.name,
+
           home_price:
             typeof saved?.home_price ===
             "number"
               ? saved.home_price
               : 0,
+
           desk_price:
             typeof saved?.desk_price ===
             "number"

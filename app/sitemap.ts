@@ -1,13 +1,17 @@
-import type { MetadataRoute } from "next";
+import type {
+  MetadataRoute,
+} from "next";
 
 import {
+  getIndexableCategories,
   getIndexableProducts,
 } from "@/lib/seo/products";
 import {
   absoluteUrl,
 } from "@/lib/seo/site-url";
 
-export const revalidate = 3600;
+export const revalidate =
+  3600;
 
 function getValidLastModified(
   value: string | null,
@@ -17,7 +21,8 @@ function getValidLastModified(
     return fallback;
   }
 
-  const date = new Date(value);
+  const date =
+    new Date(value);
 
   if (
     Number.isNaN(
@@ -34,61 +39,106 @@ function getImageUrl(
   value: string,
 ): string {
   try {
-    return new URL(value).toString();
+    return new URL(
+      value,
+    ).toString();
   } catch {
-    return absoluteUrl(value);
+    return absoluteUrl(
+      value,
+    );
   }
 }
 
 export default async function sitemap(): Promise<
   MetadataRoute.Sitemap
 > {
-  const now = new Date();
+  const now =
+    new Date();
 
   const staticPages:
-    MetadataRoute.Sitemap = [
-    {
-      url: absoluteUrl("/"),
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 1,
-    },
+    MetadataRoute.Sitemap =
+    [
+      {
+        url:
+          absoluteUrl(
+            "/",
+          ),
 
-    {
-      url: absoluteUrl("/shop"),
-      lastModified: now,
-      changeFrequency: "daily",
-      priority: 0.9,
-    },
+        lastModified:
+          now,
 
-    {
-      url: absoluteUrl("/about"),
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
+        changeFrequency:
+          "daily",
 
-    {
-      url: absoluteUrl("/contact"),
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.5,
-    },
-  ];
+        priority: 1,
+      },
+
+      {
+        url:
+          absoluteUrl(
+            "/shop",
+          ),
+
+        lastModified:
+          now,
+
+        changeFrequency:
+          "daily",
+
+        priority: 0.9,
+      },
+
+      {
+        url:
+          absoluteUrl(
+            "/about",
+          ),
+
+        lastModified:
+          now,
+
+        changeFrequency:
+          "monthly",
+
+        priority: 0.5,
+      },
+
+      {
+        url:
+          absoluteUrl(
+            "/contact",
+          ),
+
+        lastModified:
+          now,
+
+        changeFrequency:
+          "monthly",
+
+        priority: 0.5,
+      },
+    ];
 
   try {
-    const products =
-      await getIndexableProducts();
+    const [
+      products,
+      categories,
+    ] =
+      await Promise.all([
+        getIndexableProducts(),
+        getIndexableCategories(),
+      ]);
 
     const productPages:
       MetadataRoute.Sitemap =
       products.map(
         (product) => ({
-          url: absoluteUrl(
-            `/product/${encodeURIComponent(
-              product.slug,
-            )}`,
-          ),
+          url:
+            absoluteUrl(
+              `/product/${encodeURIComponent(
+                product.slug,
+              )}`,
+            ),
 
           lastModified:
             getValidLastModified(
@@ -99,25 +149,57 @@ export default async function sitemap(): Promise<
           changeFrequency:
             "weekly",
 
-          priority: 0.8,
+          priority:
+            0.8,
 
           images:
-            product.images.length >
-            0
+            product.images
+              .length > 0
               ? product.images
-                  .slice(0, 3)
-                  .map(getImageUrl)
+                  .slice(
+                    0,
+                    3,
+                  )
+                  .map(
+                    getImageUrl,
+                  )
               : undefined,
+        }),
+      );
+
+    const categoryPages:
+      MetadataRoute.Sitemap =
+      categories.map(
+        (category) => ({
+          url:
+            absoluteUrl(
+              `/shop?category=${encodeURIComponent(
+                category.slug,
+              )}`,
+            ),
+
+          lastModified:
+            getValidLastModified(
+              category.created_at,
+              now,
+            ),
+
+          changeFrequency:
+            "weekly",
+
+          priority:
+            0.7,
         }),
       );
 
     return [
       ...staticPages,
+      ...categoryPages,
       ...productPages,
     ];
   } catch (error) {
     console.error(
-      "تعذر إضافة الكتب إلى خريطة الموقع:",
+      "تعذر إضافة الكتب والتصنيفات إلى خريطة الموقع:",
       error,
     );
 

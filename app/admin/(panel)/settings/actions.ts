@@ -1,6 +1,8 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import {
+  revalidatePath,
+} from "next/cache";
 import { z } from "zod";
 
 import {
@@ -9,86 +11,132 @@ import {
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
-const storeSettingsSchema = z.object({
-  store_name: z
-    .string()
-    .trim()
-    .min(2, "اسم المتجر مطلوب.")
-    .max(100, "اسم المتجر طويل جداً."),
-
-  phone: z
-    .string()
-    .trim()
-    .max(30, "رقم الهاتف طويل جداً."),
-
-  email: z.union([
-    z.literal(""),
-    z
+const storeSettingsSchema =
+  z.object({
+    store_name: z
       .string()
       .trim()
-      .email("البريد الإلكتروني غير صالح.")
-      .max(150),
-  ]),
+      .min(
+        2,
+        "اسم المتجر مطلوب.",
+      )
+      .max(
+        100,
+        "اسم المتجر طويل جداً.",
+      ),
 
-  instagram: z
-    .string()
-    .trim()
-    .max(200, "حساب إنستغرام طويل جداً."),
+    phone: z
+      .string()
+      .trim()
+      .max(
+        30,
+        "رقم الهاتف طويل جداً.",
+      ),
 
-  address: z
-    .string()
-    .trim()
-    .max(500, "العنوان طويل جداً."),
+    email: z.union([
+      z.literal(""),
+      z
+        .string()
+        .trim()
+        .email(
+          "البريد الإلكتروني غير صالح.",
+        )
+        .max(150),
+    ]),
 
-  free_delivery_threshold: z
-    .number()
-    .int("قيمة التوصيل المجاني يجب أن تكون عدداً صحيحاً.")
-    .min(
-      0,
-      "قيمة التوصيل المجاني لا يمكن أن تكون سالبة.",
-    )
-    .max(1_000_000_000)
-    .nullable(),
-});
+    instagram: z
+      .string()
+      .trim()
+      .max(
+        200,
+        "حساب إنستغرام طويل جداً.",
+      ),
 
-const deliveryPriceSchema = z.object({
-  wilaya_code: z
-    .number()
-    .int()
-    .min(1)
-    .max(58),
+    address: z
+      .string()
+      .trim()
+      .max(
+        500,
+        "العنوان طويل جداً.",
+      ),
 
-  home_price: z
-    .number()
-    .int("سعر التوصيل إلى المنزل يجب أن يكون عدداً صحيحاً.")
-    .min(
-      0,
-      "سعر التوصيل إلى المنزل لا يمكن أن يكون سالباً.",
-    )
-    .max(1_000_000),
+    free_delivery_threshold:
+      z
+        .number()
+        .int(
+          "قيمة التوصيل المجاني يجب أن تكون عدداً صحيحاً.",
+        )
+        .min(
+          0,
+          "قيمة التوصيل المجاني لا يمكن أن تكون سالبة.",
+        )
+        .max(
+          1_000_000_000,
+        )
+        .nullable(),
+  });
 
-  desk_price: z
-    .number()
-    .int("سعر التوصيل إلى المكتب يجب أن يكون عدداً صحيحاً.")
-    .min(
-      0,
-      "سعر التوصيل إلى المكتب لا يمكن أن يكون سالباً.",
-    )
-    .max(1_000_000),
-});
+const deliveryPriceSchema =
+  z.object({
+    wilaya_code: z
+      .number()
+      .int()
+      .min(1)
+      .max(58),
+
+    home_price: z
+      .number()
+      .int(
+        "سعر التوصيل إلى المنزل يجب أن يكون عدداً صحيحاً.",
+      )
+      .min(
+        0,
+        "سعر التوصيل إلى المنزل لا يمكن أن يكون سالباً.",
+      )
+      .max(
+        1_000_000,
+      ),
+
+    desk_price: z
+      .number()
+      .int(
+        "سعر التوصيل إلى المكتب يجب أن يكون عدداً صحيحاً.",
+      )
+      .min(
+        0,
+        "سعر التوصيل إلى المكتب لا يمكن أن يكون سالباً.",
+      )
+      .max(
+        1_000_000,
+      ),
+  });
 
 export type SettingsActionResult = {
   success: boolean;
   message: string;
 };
 
-export type StoreSettingsInput = z.infer<
-  typeof storeSettingsSchema
->;
+export type StoreSettingsInput =
+  z.infer<
+    typeof storeSettingsSchema
+  >;
 
-export type DeliveryPriceInput = z.infer<
-  typeof deliveryPriceSchema
->;
+export type DeliveryPriceInput =
+  z.infer<
+    typeof deliveryPriceSchema
+  >;
+
+function revalidateOrderPages() {
+  /*
+   * Product pages display the free-delivery
+   * threshold and delivery prices inside
+   * the direct-order form.
+   */
+  revalidatePath(
+    "/product/[slug]",
+    "page",
+  );
+}
 
 export async function saveStoreSettings(
   input: StoreSettingsInput,
@@ -96,35 +144,63 @@ export async function saveStoreSettings(
   await requireAdmin();
 
   const parsed =
-    storeSettingsSchema.safeParse(input);
+    storeSettingsSchema.safeParse(
+      input,
+    );
 
   if (!parsed.success) {
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ??
+        parsed.error
+          .issues[0]
+          ?.message ??
         "بيانات المتجر غير صالحة.",
     };
   }
 
-  const supabase = await createClient();
+  const supabase =
+    await createClient();
 
-  const { error } = await supabase
+  const {
+    error,
+  } = await supabase
     .from("settings")
     .upsert(
       {
         id: 1,
-        store_name: parsed.data.store_name,
-        phone: parsed.data.phone || null,
-        email: parsed.data.email || null,
+
+        store_name:
+          parsed.data
+            .store_name,
+
+        phone:
+          parsed.data
+            .phone ||
+          null,
+
+        email:
+          parsed.data
+            .email ||
+          null,
+
         instagram:
-          parsed.data.instagram || null,
-        address: parsed.data.address || null,
+          parsed.data
+            .instagram ||
+          null,
+
+        address:
+          parsed.data
+            .address ||
+          null,
+
         free_delivery_threshold:
-          parsed.data.free_delivery_threshold,
+          parsed.data
+            .free_delivery_threshold,
       },
       {
-        onConflict: "id",
+        onConflict:
+          "id",
       },
     );
 
@@ -141,13 +217,25 @@ export async function saveStoreSettings(
     };
   }
 
-  revalidatePath("/admin/settings");
-  revalidatePath("/", "layout");
-  revalidatePath("/contact");
+  revalidatePath(
+    "/admin/settings",
+  );
+
+  revalidatePath(
+    "/",
+    "layout",
+  );
+
+  revalidatePath(
+    "/contact",
+  );
+
+  revalidateOrderPages();
 
   return {
     success: true,
-    message: "تم حفظ معلومات المتجر بنجاح.",
+    message:
+      "تم حفظ معلومات المتجر بنجاح.",
   };
 }
 
@@ -157,41 +245,63 @@ export async function saveDeliveryPrice(
   await requireAdmin();
 
   const parsed =
-    deliveryPriceSchema.safeParse(input);
+    deliveryPriceSchema.safeParse(
+      input,
+    );
 
   if (!parsed.success) {
     return {
       success: false,
       message:
-        parsed.error.issues[0]?.message ??
+        parsed.error
+          .issues[0]
+          ?.message ??
         "بيانات التوصيل غير صالحة.",
     };
   }
 
-  const wilaya = getWilayaByCode(
-    parsed.data.wilaya_code,
-  );
+  const wilaya =
+    getWilayaByCode(
+      parsed.data
+        .wilaya_code,
+    );
 
   if (!wilaya) {
     return {
       success: false,
-      message: "الولاية غير صالحة.",
+      message:
+        "الولاية غير صالحة.",
     };
   }
 
-  const supabase = await createClient();
+  const supabase =
+    await createClient();
 
-  const { error } = await supabase
-    .from("delivery_prices")
+  const {
+    error,
+  } = await supabase
+    .from(
+      "delivery_prices",
+    )
     .upsert(
       {
-        wilaya_code: wilaya.code,
-        wilaya_name: wilaya.name,
-        home_price: parsed.data.home_price,
-        desk_price: parsed.data.desk_price,
+        wilaya_code:
+          wilaya.code,
+
+        wilaya_name:
+          wilaya.name,
+
+        home_price:
+          parsed.data
+            .home_price,
+
+        desk_price:
+          parsed.data
+            .desk_price,
       },
       {
-        onConflict: "wilaya_code",
+        onConflict:
+          "wilaya_code",
       },
     );
 
@@ -208,10 +318,15 @@ export async function saveDeliveryPrice(
     };
   }
 
-  revalidatePath("/admin/settings");
+  revalidatePath(
+    "/admin/settings",
+  );
+
+  revalidateOrderPages();
 
   return {
     success: true,
-    message: `تم حفظ أسعار ولاية ${wilaya.name}.`,
+    message:
+      `تم حفظ أسعار ولاية ${wilaya.name}.`,
   };
 }

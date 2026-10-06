@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useEffect,
   useState,
 } from "react";
 import {
@@ -11,6 +10,7 @@ import {
 import {
   updateOrderStatus,
 } from "@/app/admin/(panel)/orders/actions";
+import StatusBadge from "@/components/admin/status-badge";
 import {
   Button,
 } from "@/components/ui/button";
@@ -25,34 +25,82 @@ import {
 import {
   formatPrice,
 } from "@/lib/utils";
-import type {
-  Order,
-  OrderItem,
-  OrderStatus,
-} from "@/types";
 
-import StatusBadge from "./status-badge";
+type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "shipped"
+  | "delivered"
+  | "cancelled";
 
-type AdminOrder =
-  Order & {
-    order_items:
-      OrderItem[];
-  };
+type DeliveryType =
+  | "home"
+  | "desk";
 
-type OrderStatusDialogProps = {
-  order: AdminOrder;
+type OrderItem = {
+  id: string;
+  product_name:
+    | string
+    | null;
+  unit_price:
+    | number
+    | null;
+  quantity: number;
 };
 
-function getDeliveryLabel(
-  deliveryType:
-    | "home"
-    | "desk",
-) {
-  return deliveryType ===
-    "home"
-    ? "توصيل للمنزل"
-    : "توصيل للمكتب";
-}
+type OrderData = {
+  id: string;
+  order_number: number;
+  customer_name: string;
+  phone: string;
+  wilaya: string;
+  delivery_type: DeliveryType;
+  address: string;
+  notes:
+    | string
+    | null;
+  status: OrderStatus;
+  subtotal:
+    | number
+    | null;
+  delivery_fee:
+    | number
+    | null;
+  total:
+    | number
+    | null;
+  order_items: OrderItem[];
+};
+
+type OrderStatusDialogProps = {
+  order: OrderData;
+};
+
+const STATUS_OPTIONS: Array<{
+  value: OrderStatus;
+  label: string;
+}> = [
+  {
+    value: "pending",
+    label: "قيد الانتظار",
+  },
+  {
+    value: "confirmed",
+    label: "مؤكد",
+  },
+  {
+    value: "shipped",
+    label: "تم الشحن",
+  },
+  {
+    value: "delivered",
+    label: "تم التوصيل",
+  },
+  {
+    value: "cancelled",
+    label: "ملغي",
+  },
+];
 
 function getWhatsAppNumber(
   phone: string,
@@ -68,7 +116,9 @@ function getWhatsAppNumber(
       "00213",
     )
   ) {
-    return digits.slice(2);
+    return digits.slice(
+      2,
+    );
   }
 
   if (
@@ -92,6 +142,16 @@ function getWhatsAppNumber(
   return `213${digits}`;
 }
 
+function getDeliveryLabel(
+  deliveryType:
+    DeliveryType,
+) {
+  return deliveryType ===
+    "home"
+    ? "التوصيل إلى المنزل"
+    : "التوصيل إلى المكتب";
+}
+
 export default function OrderStatusDialog({
   order,
 }: OrderStatusDialogProps) {
@@ -104,32 +164,27 @@ export default function OrderStatusDialog({
   ] = useState(false);
 
   const [
-    status,
-    setStatus,
-  ] = useState<OrderStatus>(
-    order.status,
-  );
-
-  const [
-    isUpdating,
-    setIsUpdating,
-  ] = useState(false);
+    pendingStatus,
+    setPendingStatus,
+  ] = useState<
+    OrderStatus | null
+  >(null);
 
   const [
     errorMessage,
     setErrorMessage,
   ] = useState("");
 
-  useEffect(() => {
-    setStatus(
-      order.status,
-    );
-  }, [
-    order.id,
-    order.status,
-  ]);
+  const [
+    isUpdating,
+    setIsUpdating,
+  ] = useState(false);
 
-  const whatsapp =
+  const displayedStatus =
+    pendingStatus ??
+    order.status;
+
+  const whatsappUrl =
     `https://wa.me/${getWhatsAppNumber(
       order.phone,
     )}`;
@@ -138,46 +193,95 @@ export default function OrderStatusDialog({
     value: OrderStatus,
   ) {
     if (
-      value === status
+      value ===
+      displayedStatus
     ) {
       return;
     }
 
     setErrorMessage("");
-    setIsUpdating(true);
+    setPendingStatus(
+      value,
+    );
+    setIsUpdating(
+      true,
+    );
 
-    const result =
-      await updateOrderStatus(
-        order.id,
-        value,
+    try {
+      const result =
+        await updateOrderStatus(
+          order.id,
+          value,
+        );
+
+      if (
+        !result.success
+      ) {
+        setPendingStatus(
+          null,
+        );
+
+        setErrorMessage(
+          result.message,
+        );
+
+        return;
+      }
+
+      setOpen(false);
+      setPendingStatus(
+        null,
       );
 
-    if (
-      !result.success
+      router.refresh();
+    } catch (
+      error
     ) {
-      setErrorMessage(
-        result.message,
+      console.error(
+        "فشل تحديث حالة الطلب:",
+        error,
       );
 
+      setPendingStatus(
+        null,
+      );
+
+      setErrorMessage(
+        "تعذر تحديث حالة الطلب. حاول مرة أخرى.",
+      );
+    } finally {
       setIsUpdating(
         false,
       );
-
-      return;
     }
-
-    setStatus(value);
-    setIsUpdating(false);
-
-    router.refresh();
   }
 
   return (
     <Dialog
       open={open}
-      onOpenChange={
-        setOpen
-      }
+      onOpenChange={(
+        nextOpen,
+      ) => {
+        if (
+          isUpdating
+        ) {
+          return;
+        }
+
+        setErrorMessage("");
+
+        if (
+          !nextOpen
+        ) {
+          setPendingStatus(
+            null,
+          );
+        }
+
+        setOpen(
+          nextOpen,
+        );
+      }}
     >
       <DialogTrigger
         render={
@@ -201,107 +305,125 @@ export default function OrderStatusDialog({
           </DialogTitle>
 
           <DialogDescription>
-            معلومات العميل،
-            الكتاب، التوصيل
-            وحالة الطلب.
+            معلومات العميل
+            والكتاب وحالة الطلب.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Customer */}
-          <section className="rounded-xl border border-border p-4">
+          <section className="space-y-3 rounded-xl border border-border p-4">
             <h3 className="font-semibold">
-              معلومات العميل
+              العميل
             </h3>
 
-            <div className="mt-3 space-y-2 text-sm">
-              <p>
-                الاسم:{" "}
-                <span className="font-medium">
+            <dl className="grid gap-3 text-sm">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  الاسم
+                </dt>
+
+                <dd className="text-end font-medium">
                   {
                     order.customer_name
                   }
-                </span>
-              </p>
+                </dd>
+              </div>
 
-              <p>
-                الولاية:{" "}
-                <span className="font-medium">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  الولاية
+                </dt>
+
+                <dd className="text-end font-medium">
                   {
                     order.wilaya
                   }
-                </span>
-              </p>
+                </dd>
+              </div>
 
-              <p>
-                نوع التوصيل:{" "}
-                <span className="font-medium">
+              <div className="flex items-start justify-between gap-4">
+                <dt className="text-muted-foreground">
+                  نوع التوصيل
+                </dt>
+
+                <dd className="text-end font-medium">
                   {getDeliveryLabel(
                     order.delivery_type,
                   )}
-                </span>
-              </p>
+                </dd>
+              </div>
 
               {order.delivery_type ===
               "home" ? (
-                <p>
-                  العنوان:{" "}
-                  <span className="font-medium">
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">
+                    العنوان
+                  </dt>
+
+                  <dd className="max-w-xs text-end font-medium">
                     {
                       order.address
                     }
-                  </span>
-                </p>
+                  </dd>
+                </div>
               ) : null}
 
               {order.notes ? (
-                <p>
-                  ملاحظات:{" "}
-                  <span className="font-medium">
+                <div className="flex items-start justify-between gap-4">
+                  <dt className="text-muted-foreground">
+                    ملاحظات
+                  </dt>
+
+                  <dd className="max-w-xs whitespace-pre-wrap text-end font-medium">
                     {
                       order.notes
                     }
-                  </span>
-                </p>
+                  </dd>
+                </div>
               ) : null}
-            </div>
+            </dl>
 
-            <div className="mt-4 flex flex-wrap gap-3">
-              <a
-                href={`tel:${order.phone}`}
-                className="rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
-              >
-                اتصال:{" "}
-                <span dir="ltr">
-                  {
-                    order.phone
-                  }
-                </span>
-              </a>
-
-              <a
-                href={
-                  whatsapp
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                render={
+                  <a
+                    href={`tel:${order.phone}`}
+                  />
                 }
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-lg border border-border px-3 py-2 text-sm font-medium transition-colors hover:bg-accent"
+              >
+                اتصال
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                render={
+                  <a
+                    href={
+                      whatsappUrl
+                    }
+                    target="_blank"
+                    rel="noreferrer"
+                  />
+                }
               >
                 واتساب
-              </a>
+              </Button>
             </div>
           </section>
 
-          {/* Book */}
           <section className="space-y-3">
             <h3 className="font-semibold">
-              الكتاب
+              الكتب
             </h3>
 
-            {order.order_items.length >
-            0 ? (
-              order.order_items.map(
-                (item) => (
+            <div className="space-y-3">
+              {order.order_items.map(
+                (
+                  item,
+                ) => (
                   <div
                     key={
                       item.id
@@ -313,39 +435,39 @@ export default function OrderStatusDialog({
                         "كتاب محذوف"}
                     </p>
 
-                    <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                      <p className="text-muted-foreground">
-                        الكمية:{" "}
-                        <span className="font-medium text-foreground">
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">
+                          الكمية
+                        </p>
+
+                        <p className="mt-1 font-medium">
                           {
                             item.quantity
                           }
-                        </span>
-                      </p>
+                        </p>
+                      </div>
 
-                      <p className="text-muted-foreground">
-                        سعر الوحدة:{" "}
-                        <span className="font-medium text-foreground">
+                      <div>
+                        <p className="text-muted-foreground">
+                          سعر الوحدة
+                        </p>
+
+                        <p className="mt-1 font-medium">
                           {formatPrice(
                             item.unit_price ??
                               0,
                           )}
-                        </span>
-                      </p>
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ),
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                لا توجد بيانات
-                للكتاب.
-              </p>
-            )}
+              )}
+            </div>
           </section>
 
-          {/* Totals */}
-          <section className="space-y-3 rounded-xl bg-muted/50 p-4 text-sm">
+          <section className="space-y-3 rounded-xl bg-muted p-4 text-sm">
             <div className="flex items-center justify-between gap-4">
               <span className="text-muted-foreground">
                 المجموع الفرعي
@@ -375,24 +497,12 @@ export default function OrderStatusDialog({
               </span>
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">
-                نوع التوصيل
-              </span>
-
-              <span className="font-semibold">
-                {getDeliveryLabel(
-                  order.delivery_type,
-                )}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4 border-t border-border pt-3">
+            <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-base">
               <span className="font-bold">
                 الإجمالي
               </span>
 
-              <span className="text-lg font-bold text-primary">
+              <span className="font-bold">
                 {formatPrice(
                   order.total ??
                     0,
@@ -401,62 +511,58 @@ export default function OrderStatusDialog({
             </div>
           </section>
 
-          {/* Status */}
-          <section>
-            <label
-              htmlFor={`order-status-${order.id}`}
-              className="mb-2 block text-sm font-semibold"
-            >
-              حالة الطلب
-            </label>
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-semibold">
+                حالة الطلب
+              </h3>
+
+              <StatusBadge
+                status={
+                  displayedStatus
+                }
+              />
+            </div>
 
             <select
-              id={`order-status-${order.id}`}
-              value={status}
+              value={
+                displayedStatus
+              }
               disabled={
                 isUpdating
               }
               onChange={(
                 event,
-              ) =>
-                changeStatus(
+              ) => {
+                void changeStatus(
                   event.target
                     .value as OrderStatus,
-                )
-              }
-              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                );
+              }}
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
-              <option value="pending">
-                قيد الانتظار
-              </option>
-
-              <option value="confirmed">
-                مؤكد
-              </option>
-
-              <option value="shipped">
-                تم الشحن
-              </option>
-
-              <option value="delivered">
-                تم التوصيل
-              </option>
-
-              <option value="cancelled">
-                ملغي
-              </option>
+              {STATUS_OPTIONS.map(
+                (
+                  option,
+                ) => (
+                  <option
+                    key={
+                      option.value
+                    }
+                    value={
+                      option.value
+                    }
+                  >
+                    {
+                      option.label
+                    }
+                  </option>
+                ),
+              )}
             </select>
 
-            <div className="mt-3">
-              <StatusBadge
-                status={
-                  status
-                }
-              />
-            </div>
-
             {isUpdating ? (
-              <p className="mt-3 text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 جار تحديث حالة
                 الطلب...
               </p>
@@ -465,7 +571,7 @@ export default function OrderStatusDialog({
             {errorMessage ? (
               <p
                 role="alert"
-                className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-medium text-destructive"
+                className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-medium text-destructive"
               >
                 {
                   errorMessage

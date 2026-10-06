@@ -18,8 +18,6 @@ import {
 } from "next/navigation";
 import {
   type ChangeEvent,
-  useEffect,
-  useRef,
   useState,
 } from "react";
 import {
@@ -120,15 +118,15 @@ export function ProductForm({
     mode === "edit",
   );
 
-  const newlyUploadedImages =
-    useRef<
-      Map<
-        string,
-        string
-      >
-    >(
-      new Map(),
-    );
+  const [
+    newlyUploadedImages,
+    setNewlyUploadedImages,
+  ] = useState<
+    Record<
+      string,
+      string
+    >
+  >({});
 
   const {
     register,
@@ -161,42 +159,17 @@ export function ProductForm({
             },
     });
 
-  const bookTitle =
-    useWatch({
-      control,
-      name: "name",
-    }) ?? "";
-
   const images =
     useWatch({
       control,
       name: "images",
     }) ?? [];
 
-  useEffect(() => {
-    if (
-      slugIsManuallyEdited
-    ) {
-      return;
-    }
+  const nameRegistration =
+    register("name");
 
-    setValue(
-      "slug",
-      arabicSafeSlug(
-        bookTitle,
-      ),
-      {
-        shouldDirty:
-          true,
-        shouldValidate:
-          true,
-      },
-    );
-  }, [
-    bookTitle,
-    setValue,
-    slugIsManuallyEdited,
-  ]);
+  const slugRegistration =
+    register("slug");
 
   async function handleImagesSelected(
     event:
@@ -314,8 +287,10 @@ export function ProductForm({
                 {
                   cacheControl:
                     "31536000",
+
                   upsert:
                     false,
+
                   contentType:
                     "image/webp",
                 },
@@ -355,9 +330,14 @@ export function ProductForm({
             );
           }
 
-          newlyUploadedImages.current.set(
-            data.publicUrl,
-            storagePath,
+          setNewlyUploadedImages(
+            (
+              current,
+            ) => ({
+              ...current,
+              [data.publicUrl]:
+                storagePath,
+            }),
           );
 
           nextImages = [
@@ -371,6 +351,7 @@ export function ProductForm({
             {
               shouldDirty:
                 true,
+
               shouldValidate:
                 true,
             },
@@ -413,9 +394,9 @@ export function ProductForm({
     }
 
     const newlyUploadedPath =
-      newlyUploadedImages.current.get(
-        imageUrl,
-      );
+      newlyUploadedImages[
+        imageUrl
+      ];
 
     if (
       newlyUploadedPath
@@ -443,8 +424,20 @@ export function ProductForm({
         return;
       }
 
-      newlyUploadedImages.current.delete(
-        imageUrl,
+      setNewlyUploadedImages(
+        (
+          currentMap,
+        ) => {
+          const nextMap = {
+            ...currentMap,
+          };
+
+          delete nextMap[
+            imageUrl
+          ];
+
+          return nextMap;
+        },
       );
     }
 
@@ -464,6 +457,7 @@ export function ProductForm({
       {
         shouldDirty:
           true,
+
         shouldValidate:
           true,
       },
@@ -512,14 +506,12 @@ export function ProductForm({
       {
         shouldDirty:
           true,
+
         shouldValidate:
           true,
       },
     );
   }
-
-  const slugRegistration =
-    register("slug");
 
   async function onSubmit(
     values:
@@ -570,7 +562,9 @@ export function ProductForm({
         return;
       }
 
-      newlyUploadedImages.current.clear();
+      setNewlyUploadedImages(
+        {},
+      );
 
       toast.success(
         result.message,
@@ -614,14 +608,16 @@ export function ProductForm({
 
   return (
     <form
-      onSubmit={
-        handleSubmit(
+      onSubmit={(
+        event,
+      ) => {
+        void handleSubmit(
           onSubmit,
-        )
-      }
+        )(event);
+      }}
       className="space-y-6"
     >
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm dark:bg-card sm:p-6">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
         <div className="mb-6">
           <h2 className="text-lg font-bold">
             المعلومات الأساسية
@@ -654,9 +650,33 @@ export function ProductForm({
                   ),
                 )
               }
-              {...register(
-                "name",
-              )}
+              {...nameRegistration}
+              onChange={(
+                event,
+              ) => {
+                void nameRegistration.onChange(
+                  event,
+                );
+
+                if (
+                  !slugIsManuallyEdited
+                ) {
+                  setValue(
+                    "slug",
+                    arabicSafeSlug(
+                      event.target
+                        .value,
+                    ),
+                    {
+                      shouldDirty:
+                        true,
+
+                      shouldValidate:
+                        true,
+                    },
+                  );
+                }
+              }}
             />
 
             {errors.name ? (
@@ -670,12 +690,45 @@ export function ProductForm({
           </div>
 
           <div>
-            <label
-              htmlFor="slug"
-              className="mb-2 block text-sm font-semibold"
-            >
-              الرابط المختصر
-            </label>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label
+                htmlFor="slug"
+                className="text-sm font-semibold"
+              >
+                الرابط المختصر
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const generatedSlug =
+                    arabicSafeSlug(
+                      getValues(
+                        "name",
+                      ),
+                    );
+
+                  setSlugIsManuallyEdited(
+                    false,
+                  );
+
+                  setValue(
+                    "slug",
+                    generatedSlug,
+                    {
+                      shouldDirty:
+                        true,
+
+                      shouldValidate:
+                        true,
+                    },
+                  );
+                }}
+                className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                توليد من العنوان
+              </button>
+            </div>
 
             <input
               id="slug"
@@ -695,17 +748,17 @@ export function ProductForm({
                   true,
                 );
 
+                event.target.value =
+                  arabicSafeSlug(
+                    event.target
+                      .value,
+                  );
+
                 void slugRegistration.onChange(
                   event,
                 );
               }}
             />
-
-            <p className="mt-2 text-xs text-muted-foreground">
-              يتم إنشاؤه تلقائياً
-              من عنوان الكتاب ويمكنك
-              تعديله يدوياً.
-            </p>
 
             {errors.slug ? (
               <p className="mt-2 text-xs text-destructive">
@@ -835,8 +888,7 @@ export function ProductForm({
             {errors.publisher ? (
               <p className="mt-2 text-xs text-destructive">
                 {
-                  errors
-                    .publisher
+                  errors.publisher
                     .message
                 }
               </p>
@@ -856,7 +908,7 @@ export function ProductForm({
               type="text"
               list="riwaya-suggestions"
               autoComplete="off"
-              placeholder="اختياري للكتب غير المصاحف"
+              placeholder="اختياري"
               className={
                 fieldClassName(
                   Boolean(
@@ -887,9 +939,8 @@ export function ProductForm({
             </datalist>
 
             <p className="mt-2 text-xs text-muted-foreground">
-              اقتراحات: حفص عن
-              عاصم، ورش عن نافع،
-              قالون عن نافع.
+              حفص عن عاصم، ورش عن
+              نافع، قالون عن نافع.
             </p>
 
             {errors.riwaya ? (
@@ -904,16 +955,11 @@ export function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm dark:bg-card sm:p-6">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
         <div className="mb-6">
           <h2 className="text-lg font-bold">
             السعر والمخزون
           </h2>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            السعر بالدينار الجزائري
-            والكمية المتوفرة حالياً.
-          </p>
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
@@ -999,7 +1045,7 @@ export function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm dark:bg-card sm:p-6">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h2 className="text-lg font-bold">
@@ -1070,8 +1116,8 @@ export function ProductForm({
             </p>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              يمكنك إضافة حتى 3
-              صور للكتاب.
+              يمكنك إضافة حتى 3 صور
+              للكتاب.
             </p>
           </div>
         ) : (
@@ -1083,7 +1129,7 @@ export function ProductForm({
               ) => (
                 <div
                   key={`${imageUrl}-${index}`}
-                  className="group relative overflow-hidden rounded-2xl border border-border bg-muted"
+                  className="relative overflow-hidden rounded-2xl border border-border bg-muted"
                 >
                   <div className="aspect-[3/4]">
                     <img
@@ -1107,11 +1153,11 @@ export function ProductForm({
 
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
                       void removeImage(
                         index,
-                      )
-                    }
+                      );
+                    }}
                     aria-label="حذف الصورة"
                     className="absolute end-2 top-2 inline-flex size-9 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background"
                   >
@@ -1191,7 +1237,7 @@ export function ProductForm({
         ) : null}
       </section>
 
-      <section className="rounded-2xl border border-border bg-white p-5 shadow-sm dark:bg-card sm:p-6">
+      <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
         <div className="mb-5">
           <h2 className="text-lg font-bold">
             الظهور في المتجر
@@ -1246,7 +1292,7 @@ export function ProductForm({
       </section>
 
       <div className="sticky bottom-4 z-10 flex justify-end">
-        <div className="rounded-2xl border border-border bg-white/95 p-2 shadow-lg backdrop-blur dark:bg-card/95">
+        <div className="rounded-2xl border border-border bg-background/95 p-2 shadow-lg backdrop-blur">
           <button
             type="submit"
             disabled={

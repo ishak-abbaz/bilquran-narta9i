@@ -3,59 +3,97 @@ import "server-only";
 import {
   createClient,
 } from "@supabase/supabase-js";
-import { cache } from "react";
+import {
+  cache,
+} from "react";
 import { z } from "zod";
 
-const productSlugSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(180)
-  .refine(
-    (value) =>
-      !value.includes("/") &&
-      !value.includes("\\"),
-    "رابط الكتاب غير صالح.",
-  );
+const productSlugSchema =
+  z
+    .string()
+    .trim()
+    .min(1)
+    .max(180)
+    .refine(
+      (value) =>
+        !value.includes(
+          "/",
+        ) &&
+        !value.includes(
+          "\\",
+        ),
+      "رابط الكتاب غير صالح.",
+    );
 
-const productSeoSchema = z.object({
-  slug: z.string().min(1),
-  name: z.string().min(1),
+const productSeoSchema =
+  z.object({
+    slug:
+      z.string().min(1),
 
-  description:
-    z.string().nullable(),
+    name:
+      z.string().min(1),
 
-  publisher:
-    z.string().nullable(),
+    description:
+      z
+        .string()
+        .nullable(),
 
-  riwaya:
-    z.string().nullable(),
+    publisher:
+      z
+        .string()
+        .nullable(),
 
-  price:
-    z.coerce
-      .number()
-      .nonnegative(),
+    riwaya:
+      z
+        .string()
+        .nullable(),
 
-  images:
-    z.array(z.string())
-      .max(3),
+    price:
+      z.coerce
+        .number()
+        .nonnegative(),
 
-  stock:
-    z.coerce
-      .number()
-      .int()
-      .nonnegative(),
+    images:
+      z
+        .array(
+          z.string(),
+        )
+        .max(3),
 
-  is_active:
-    z.boolean(),
+    stock:
+      z.coerce
+        .number()
+        .int()
+        .nonnegative(),
 
-  created_at:
-    z.string(),
-});
+    is_active:
+      z.boolean(),
+
+    created_at:
+      z
+        .string()
+        .nullable(),
+  });
+
+const categorySeoSchema =
+  z.object({
+    slug:
+      z.string().min(1),
+
+    created_at:
+      z
+        .string()
+        .nullable(),
+  });
 
 export type ProductSeo =
   z.infer<
     typeof productSeoSchema
+  >;
+
+export type CategorySeo =
+  z.infer<
+    typeof categorySeoSchema
   >;
 
 function createSeoSupabaseClient() {
@@ -83,9 +121,14 @@ function createSeoSupabaseClient() {
     supabaseKey,
     {
       auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
+        persistSession:
+          false,
+
+        autoRefreshToken:
+          false,
+
+        detectSessionInUrl:
+          false,
       },
     },
   );
@@ -213,13 +256,15 @@ export async function getIndexableProducts(): Promise<
       .order(
         "created_at",
         {
-          ascending: false,
+          ascending:
+            false,
         },
       )
       .order(
         "slug",
         {
-          ascending: true,
+          ascending:
+            true,
         },
       )
       .range(
@@ -241,11 +286,13 @@ export async function getIndexableProducts(): Promise<
     }
 
     const parsedPage =
-      z.array(
-        productSeoSchema,
-      ).safeParse(
-        data ?? [],
-      );
+      z
+        .array(
+          productSeoSchema,
+        )
+        .safeParse(
+          data ?? [],
+        );
 
     if (
       !parsedPage.success
@@ -265,16 +312,113 @@ export async function getIndexableProducts(): Promise<
     );
 
     if (
-      parsedPage.data.length <
+      parsedPage.data
+        .length <
       pageSize
     ) {
       break;
     }
 
-    offset += pageSize;
+    offset +=
+      pageSize;
   }
 
   return products;
+}
+
+export async function getIndexableCategories(): Promise<
+  CategorySeo[]
+> {
+  const supabase =
+    createSeoSupabaseClient();
+
+  const pageSize = 1000;
+  let offset = 0;
+
+  const categories:
+    CategorySeo[] = [];
+
+  while (true) {
+    const {
+      data,
+      error,
+    } = await supabase
+      .from("categories")
+      .select(`
+        slug,
+        created_at
+      `)
+      .order(
+        "sort_order",
+        {
+          ascending:
+            true,
+        },
+      )
+      .order(
+        "slug",
+        {
+          ascending:
+            true,
+        },
+      )
+      .range(
+        offset,
+        offset +
+          pageSize -
+          1,
+      );
+
+    if (error) {
+      console.error(
+        "تعذر تحميل التصنيفات لخريطة الموقع:",
+        error,
+      );
+
+      throw new Error(
+        "تعذر تحميل التصنيفات لخريطة الموقع.",
+      );
+    }
+
+    const parsedPage =
+      z
+        .array(
+          categorySeoSchema,
+        )
+        .safeParse(
+          data ?? [],
+        );
+
+    if (
+      !parsedPage.success
+    ) {
+      console.error(
+        "بيانات التصنيفات لا تطابق بنية خريطة الموقع:",
+        parsedPage.error,
+      );
+
+      throw new Error(
+        "بيانات التصنيفات المخزنة غير صالحة.",
+      );
+    }
+
+    categories.push(
+      ...parsedPage.data,
+    );
+
+    if (
+      parsedPage.data
+        .length <
+      pageSize
+    ) {
+      break;
+    }
+
+    offset +=
+      pageSize;
+  }
+
+  return categories;
 }
 
 export function buildBookStructuredData(
@@ -286,11 +430,36 @@ export function buildBookStructuredData(
           {
             "@type":
               "PropertyValue",
-            name: "الرواية",
+
+            name:
+              "الرواية",
+
             value:
               product.riwaya,
           },
         ]
+      : undefined;
+
+  const publisher =
+    product.publisher
+      ? {
+          "@type":
+            "Organization",
+
+          name:
+            product.publisher,
+        }
+      : undefined;
+
+  const brand =
+    product.publisher
+      ? {
+          "@type":
+            "Brand",
+
+          name:
+            product.publisher,
+        }
       : undefined;
 
   return {
@@ -318,21 +487,16 @@ export function buildBookStructuredData(
         ? product.images
         : undefined,
 
-    publisher:
-      product.publisher
-        ? {
-            "@type":
-              "Organization",
-            name:
-              product.publisher,
-          }
-        : undefined,
+    brand,
+
+    publisher,
 
     additionalProperty:
       additionalProperties,
 
     offers: {
-      "@type": "Offer",
+      "@type":
+        "Offer",
 
       priceCurrency:
         "DZD",
