@@ -6,6 +6,7 @@ import {
   Package,
   Settings,
   ShoppingBag,
+  Tags,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,6 +28,12 @@ const navigationItems = [
     href: "/admin/products",
     label: "المنتجات",
     icon: Package,
+    exact: false,
+  },
+  {
+    href: "/admin/categories",
+    label: "التصنيفات",
+    icon: Tags,
     exact: false,
   },
   {
@@ -55,40 +62,54 @@ export default function AdminSideBar() {
           </p>
 
           <p className="mt-2 text-xl font-bold">
-            [YOUR STORE NAME]
+            بالقرآن نرتقي
           </p>
         </div>
 
         <nav className="mt-4 space-y-1">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
+          {navigationItems.map(
+            (item) => {
+              const Icon =
+                item.icon;
 
-            const isActive = item.exact
-              ? pathname === item.href
-              : pathname === item.href ||
-                pathname.startsWith(
-                  `${item.href}/`,
-                );
+              const isActive =
+                item.exact
+                  ? pathname ===
+                    item.href
+                  : pathname ===
+                      item.href ||
+                    pathname.startsWith(
+                      `${item.href}/`,
+                    );
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                }`}
-              >
-                <Icon
-                  className="size-4 shrink-0"
-                  aria-hidden="true"
-                />
+              return (
+                <Link
+                  key={
+                    item.href
+                  }
+                  href={
+                    item.href
+                  }
+                  className={`flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${
+                    isActive
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  }`}
+                >
+                  <Icon
+                    className="size-4 shrink-0"
+                    aria-hidden="true"
+                  />
 
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+                  <span>
+                    {
+                      item.label
+                    }
+                  </span>
+                </Link>
+              );
+            },
+          )}
         </nav>
       </div>
     </aside>
