@@ -1,42 +1,51 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { useCartStore } from "@/store/cart";
 
-export function OrderSuccessClient() {
+type OrderSuccessClientProps = {
+  orderNumber: string;
+};
+
+export function OrderSuccessClient({
+  orderNumber,
+}: OrderSuccessClientProps) {
   const router = useRouter();
 
-  const clear = useCartStore(
-    (state) => state.clear,
-  );
-
-  useEffect(() => {
-    clear();
-  }, [clear]);
-
-
   return (
-    <div className="flex flex-col gap-3 sm:flex-row">
+    <div className="w-full">
+      <h1 className="text-3xl font-bold">
+        شكراً لك على طلبك
+      </h1>
+
+      <p className="mt-4 leading-7 text-muted-foreground">
+        تم استلام طلبك بنجاح. سنتصل بك هاتفياً
+        لتأكيد الطلب قبل الشحن.
+      </p>
+
+      <div className="mt-6 rounded-xl bg-muted p-5">
+        <p className="text-sm text-muted-foreground">
+          رقم الطلب
+        </p>
+
+        <p
+          dir="ltr"
+          className="mt-2 text-2xl font-bold"
+        >
+          {orderNumber}
+        </p>
+      </div>
 
       <Button
-        className="flex-1"
-        onClick={() => router.push("/shop")}
+        type="button"
+        className="mt-8 w-full"
+        onClick={() =>
+          router.push("/shop")
+        }
       >
-        متابعة التسوق
+        العودة إلى المتجر
       </Button>
-
-
-      <Button
-        variant="outline"
-        className="flex-1"
-        onClick={() => router.push("/")}
-      >
-        الصفحة الرئيسية
-      </Button>
-
     </div>
   );
 }

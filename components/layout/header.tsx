@@ -92,7 +92,7 @@ export default function Header() {
             tracking-[0.35em]
           "
         >
-          [YOUR STORE NAME]
+          بالقرآن نرتقي
         </Link>
 
         <nav
@@ -103,22 +103,20 @@ export default function Header() {
             md:flex
           "
         >
-          {links.map(
-            (link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="
-                  text-sm
-                  font-medium
-                  transition-colors
-                  hover:text-primary
-                "
-              >
-                {link.label}
-              </Link>
-            ),
-          )}
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="
+                text-sm
+                font-medium
+                transition-colors
+                hover:text-primary
+              "
+            >
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
         <div
@@ -198,7 +196,7 @@ export default function Header() {
               >
                 <SheetHeader>
                   <SheetTitle className="text-end">
-                    [YOUR STORE NAME]
+                    بالقرآن نرتقي
                   </SheetTitle>
                 </SheetHeader>
 
@@ -211,21 +209,19 @@ export default function Header() {
                     text-end
                   "
                 >
-                  {links.map(
-                    (link) => (
-                      <Link
-                        key={link.href}
-                        href={link.href}
-                        className="
-                          text-lg
-                          transition-colors
-                          hover:text-primary
-                        "
-                      >
-                        {link.label}
-                      </Link>
-                    ),
-                  )}
+                  {links.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      className="
+                        text-lg
+                        transition-colors
+                        hover:text-primary
+                      "
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
                 </nav>
               </SheetContent>
             </Sheet>

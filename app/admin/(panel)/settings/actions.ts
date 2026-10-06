@@ -209,7 +209,6 @@ export async function saveDeliveryPrice(
   }
 
   revalidatePath("/admin/settings");
-  revalidatePath("/checkout");
 
   return {
     success: true,

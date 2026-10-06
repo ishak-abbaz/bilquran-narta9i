@@ -1,8 +1,15 @@
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import type {
+  Metadata,
+} from "next";
+import {
+  notFound,
+} from "next/navigation";
 
 import ProductCard from "@/components/product-card";
 import ProductDetailsClient from "@/components/product/product-details-client";
+import {
+  getDeliveryPrices,
+} from "@/lib/data/delivery";
 import {
   getProductBySlug,
   getRelatedProducts,
@@ -11,6 +18,9 @@ import {
   buildBookStructuredData,
   getProductSeoBySlug,
 } from "@/lib/seo/products";
+import {
+  getStoreSettings,
+} from "@/lib/store-settings";
 
 type ProductPageProps = {
   params: Promise<{
@@ -21,14 +31,20 @@ type ProductPageProps = {
 export async function generateMetadata({
   params,
 }: ProductPageProps): Promise<Metadata> {
-  const { slug } = await params;
+  const {
+    slug,
+  } = await params;
 
   const product =
-    await getProductSeoBySlug(slug);
+    await getProductSeoBySlug(
+      slug,
+    );
 
   if (!product) {
     return {
-      title: "الكتاب غير موجود",
+      title:
+        "الكتاب غير موجود",
+
       description:
         "تعذر العثور على الكتاب المطلوب.",
     };
@@ -41,31 +57,51 @@ export async function generateMetadata({
       : `${product.name}، متوفر ضمن مجموعة المصاحف والكتب الإسلامية.`);
 
   const images =
-    product.images.slice(0, 3);
+    product.images.slice(
+      0,
+      3,
+    );
 
   return {
-    title: product.name,
+    title:
+      product.name,
+
     description,
 
     openGraph: {
-      title: product.name,
+      title:
+        product.name,
+
       description,
-      images: images.map((url) => ({
-        url,
-        alt: product.name,
-      })),
+
+      images:
+        images.map(
+          (url) => ({
+            url,
+            alt:
+              product.name,
+          }),
+        ),
     },
 
     twitter: {
       card:
-        images.length > 0
+        images.length >
+        0
           ? "summary_large_image"
           : "summary",
-      title: product.name,
+
+      title:
+        product.name,
+
       description,
+
       images:
-        images.length > 0
-          ? [images[0]]
+        images.length >
+        0
+          ? [
+              images[0],
+            ]
           : undefined,
     },
   };
@@ -74,45 +110,78 @@ export async function generateMetadata({
 export default async function ProductPage({
   params,
 }: ProductPageProps) {
-  const { slug } = await params;
+  const {
+    slug,
+  } = await params;
 
   const product =
-    await getProductBySlug(slug);
+    await getProductBySlug(
+      slug,
+    );
 
   if (!product) {
     notFound();
   }
 
-  const relatedProducts =
+  const relatedProductsPromise =
     product.category_id
-      ? await getRelatedProducts(
+      ? getRelatedProducts(
           product.category_id,
           product.id,
           4,
         )
-      : [];
+      : Promise.resolve(
+          [],
+        );
+
+  const [
+    relatedProducts,
+    deliveryPrices,
+    settings,
+  ] = await Promise.all([
+    relatedProductsPromise,
+    getDeliveryPrices(),
+    getStoreSettings(),
+  ]);
 
   const structuredData =
-    buildBookStructuredData(product);
+    buildBookStructuredData(
+      product,
+    );
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            structuredData,
-          ).replace(/</g, "\\u003c"),
+          __html:
+            JSON.stringify(
+              structuredData,
+            ).replace(
+              /</g,
+              "\\u003c",
+            ),
         }}
       />
 
       <section>
         <ProductDetailsClient
-          product={product}
+          product={
+            product
+          }
+          deliveryPrices={
+            deliveryPrices
+          }
+          freeDeliveryThreshold={
+            settings
+              .free_delivery_threshold ??
+            null
+          }
         />
       </section>
 
-      {relatedProducts.length > 0 ? (
+      {relatedProducts.length >
+      0 ? (
         <section className="mt-20 space-y-8">
           <div>
             <p className="text-sm font-semibold text-primary">
@@ -128,8 +197,12 @@ export default async function ProductPage({
             {relatedProducts.map(
               (item) => (
                 <ProductCard
-                  key={item.id}
-                  product={item}
+                  key={
+                    item.id
+                  }
+                  product={
+                    item
+                  }
                 />
               ),
             )}

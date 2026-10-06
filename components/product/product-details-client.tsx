@@ -1,24 +1,39 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import {
+  useState,
+} from "react";
 
-import { formatPrice } from "@/lib/utils";
-import type { Product } from "@/types";
+import OrderForm from "@/components/order/order-form";
+import {
+  formatPrice,
+} from "@/lib/utils";
+import type {
+  DeliveryPrice,
+  Product,
+} from "@/types";
 
 interface ProductDetailsClientProps {
   product: Product;
+
+  deliveryPrices:
+    DeliveryPrice[];
+
+  freeDeliveryThreshold:
+    number | null;
 }
 
 export default function ProductDetailsClient({
   product,
+  deliveryPrices,
+  freeDeliveryThreshold,
 }: ProductDetailsClientProps) {
-  /*
-   * The database already limits images to three.
-   * slice() is kept as a defensive UI boundary.
-   */
   const images =
-    product.images.slice(0, 3);
+    product.images.slice(
+      0,
+      3,
+    );
 
   const [
     selectedImageIndex,
@@ -26,7 +41,9 @@ export default function ProductDetailsClient({
   ] = useState(0);
 
   const selectedImage =
-    images[selectedImageIndex];
+    images[
+      selectedImageIndex
+    ];
 
   const inStock =
     product.stock > 0;
@@ -38,8 +55,12 @@ export default function ProductDetailsClient({
         <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-border bg-muted">
           {selectedImage ? (
             <Image
-              src={selectedImage}
-              alt={product.name}
+              src={
+                selectedImage
+              }
+              alt={
+                product.name
+              }
               fill
               priority
               sizes="(max-width: 1024px) 100vw, 50vw"
@@ -47,15 +68,20 @@ export default function ProductDetailsClient({
             />
           ) : (
             <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              لا توجد صورة لهذا الكتاب
+              لا توجد صورة
+              لهذا الكتاب
             </div>
           )}
         </div>
 
-        {images.length > 0 ? (
+        {images.length >
+        0 ? (
           <div className="flex flex-wrap gap-3">
             {images.map(
-              (image, index) => {
+              (
+                image,
+                index,
+              ) => {
                 const isSelected =
                   index ===
                   selectedImageIndex;
@@ -70,7 +96,8 @@ export default function ProductDetailsClient({
                       )
                     }
                     aria-label={`عرض الصورة ${
-                      index + 1
+                      index +
+                      1
                     }`}
                     aria-pressed={
                       isSelected
@@ -82,9 +109,12 @@ export default function ProductDetailsClient({
                     }`}
                   >
                     <Image
-                      src={image}
+                      src={
+                        image
+                      }
                       alt={`${product.name}، الصورة ${
-                        index + 1
+                        index +
+                        1
                       }`}
                       fill
                       sizes="80px"
@@ -104,11 +134,15 @@ export default function ProductDetailsClient({
         )}
       </div>
 
-      {/* Book information */}
+      {/* Book details */}
       <div className="flex flex-col">
         {product.category ? (
           <p className="text-sm font-semibold text-primary">
-            {product.category.name}
+            {
+              product
+                .category
+                .name
+            }
           </p>
         ) : null}
 
@@ -117,7 +151,9 @@ export default function ProductDetailsClient({
         </h1>
 
         <p className="mt-5 text-2xl font-bold">
-          {formatPrice(product.price)}
+          {formatPrice(
+            product.price,
+          )}
         </p>
 
         <dl className="mt-8 divide-y divide-border border-y border-border">
@@ -139,7 +175,10 @@ export default function ProductDetailsClient({
               </dt>
 
               <dd className="font-medium">
-                {product.riwaya}
+                {
+                  product
+                    .riwaya
+                }
               </dd>
             </div>
           ) : null}
@@ -156,6 +195,7 @@ export default function ProductDetailsClient({
                     className="size-2 rounded-full bg-primary"
                     aria-hidden="true"
                   />
+
                   متوفر
                 </span>
               ) : (
@@ -178,29 +218,25 @@ export default function ProductDetailsClient({
           </p>
         </div>
 
-        {/*
-          ==================================================
-          NEXT SPRINT: DIRECT ORDER FORM
-          Replace the temporary block below with:
-
-          <OrderForm product={product} />
-
-          from:
-          components/order/order-form.tsx
-          ==================================================
-        */}
         <div className="mt-10 border-t border-border pt-6">
-          <button
-            type="button"
-            disabled
-            className="h-12 w-full cursor-not-allowed rounded-xl bg-primary px-6 font-semibold text-primary-foreground opacity-50"
-          >
-            اطلب الآن
-          </button>
-
-          <p className="mt-3 text-center text-xs text-muted-foreground">
-            سيتم تفعيل الطلب المباشر قريباً.
-          </p>
+          <OrderForm
+            book={{
+              id:
+                product.id,
+              name:
+                product.name,
+              price:
+                product.price,
+              stock:
+                product.stock,
+            }}
+            deliveryPrices={
+              deliveryPrices
+            }
+            freeDeliveryThreshold={
+              freeDeliveryThreshold
+            }
+          />
         </div>
       </div>
     </div>

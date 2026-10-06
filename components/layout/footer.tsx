@@ -8,7 +8,7 @@ export default function Footer() {
       <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 md:grid-cols-3">
         <div>
           <h2 className="text-2xl font-bold tracking-[0.35em]">
-            [YOUR STORE NAME]
+            بالقرآن نرتقي
           </h2>
 
           <p className="mt-4 max-w-sm text-sm leading-7 text-muted-foreground">
@@ -52,7 +52,7 @@ export default function Footer() {
       </div>
 
       <div className="border-t py-5 text-center text-sm text-muted-foreground">
-        © {year} [YOUR STORE NAME]. جميع الحقوق محفوظة.
+        © {year} بالقرآن نرتقي. جميع الحقوق محفوظة.
       </div>
     </footer>
   );
