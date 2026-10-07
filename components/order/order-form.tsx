@@ -5,79 +5,65 @@ import {
 } from "@hookform/resolvers/zod";
 import {
   Loader2,
+  Minus,
+  Plus,
+  ShoppingBag,
+  Truck,
 } from "lucide-react";
 import {
-  useEffect,
   useState,
 } from "react";
 import {
-  type FieldPath,
   useForm,
+  useWatch,
 } from "react-hook-form";
+import {
+  toast,
+} from "sonner";
 
 import {
   createOrderAction,
-  type CreateOrderActionResult,
 } from "@/app/(store)/product/[slug]/actions";
-import {
-  Button,
-} from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  formatPrice,
-} from "@/lib/utils";
 import {
   orderSchema,
   type OrderInput,
 } from "@/lib/validation/order";
+import {
+  formatPrice,
+} from "@/lib/utils";
 import type {
-  DeliveryPrice,
+  Product,
 } from "@/types";
 
-type OrderBook = {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
+type DeliveryPrice = {
+  wilaya_code: number;
+  wilaya_name: string;
+  home_price: number;
+  desk_price: number;
 };
 
 type OrderFormProps = {
-  book: OrderBook;
-
-  deliveryPrices:
-    DeliveryPrice[];
-
+  book: Product;
+  deliveryPrices: DeliveryPrice[];
   freeDeliveryThreshold:
-    number | null;
+    | number
+    | null;
 };
 
 type OrderFormFieldsProps =
   OrderFormProps;
 
-const inputClassName =
-  "h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50";
-
-function FieldError({
-  message,
-}: {
-  message?: string;
-}) {
-  if (!message) {
-    return null;
-  }
-
-  return (
-    <p className="mt-2 text-xs font-medium text-destructive">
-      {message}
-    </p>
-  );
+function fieldClassName(
+  hasError: boolean,
+) {
+  return [
+    "h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition",
+    "placeholder:text-muted-foreground",
+    "focus:ring-2 focus:ring-ring/20",
+    hasError
+      ? "border-destructive focus:border-destructive"
+      : "border-input focus:border-foreground/30",
+  ].join(" ");
 }
 
 function OrderFormFields({
@@ -85,232 +71,247 @@ function OrderFormFields({
   deliveryPrices,
   freeDeliveryThreshold,
 }: OrderFormFieldsProps) {
+  /*
+   * Defensive boundary.
+   * A missing prop must never crash the storefront.
+   */
+  const safeDeliveryPrices =
+    Array.isArray(
+      deliveryPrices,
+    )
+      ? deliveryPrices
+      : [];
+
   const maxQuantity =
-    Math.min(
-      book.stock,
-      10,
+    Math.max(
+      1,
+      Math.min(
+        book.stock,
+        10,
+      ),
     );
+
+  const firstWilayaCode =
+    safeDeliveryPrices[
+      0
+    ]?.wilaya_code ??
+    0;
 
   const {
     register,
-    handleSubmit,
-    watch,
-    setError,
-    clearErrors,
+    control,
     setValue,
+    handleSubmit,
     formState: {
       errors,
       isSubmitting,
     },
-  } = useForm<OrderInput>({
-    resolver:
-      zodResolver(
-        orderSchema,
-      ),
+  } =
+    useForm<OrderInput>({
+      resolver:
+        zodResolver(
+          orderSchema,
+        ),
 
-    defaultValues: {
-      productId:
-        book.id,
+      defaultValues: {
+        productId:
+          book.id,
 
-      quantity: 1,
+        quantity: 1,
 
-      fullName: "",
+        fullName: "",
 
-      phone: "",
+        phone: "",
 
-      wilayaCode: 0,
+        wilayaCode:
+          firstWilayaCode,
 
-      deliveryType:
-        "home",
+        deliveryType:
+          "desk",
 
-      address: "",
+        address: "",
 
-      notes: "",
-    },
-  });
-
-  const watchedQuantity =
-    watch("quantity");
-
-  const watchedWilayaCode =
-    watch("wilayaCode");
-
-  const deliveryType =
-    watch("deliveryType");
-
-  /*
-   * Desk delivery does not need an address.
-   * Remove any old address error/value when
-   * the user switches from home to desk.
-   */
-  useEffect(() => {
-    if (
-      deliveryType !==
-      "desk"
-    ) {
-      return;
-    }
-
-    clearErrors(
-      "address",
-    );
-
-    setValue(
-      "address",
-      "",
-      {
-        shouldValidate:
-          false,
-        shouldDirty:
-          false,
+        notes: "",
       },
-    );
-  }, [
-    deliveryType,
-    clearErrors,
-    setValue,
-  ]);
+    });
 
   const quantity =
-    Number.isInteger(
-      watchedQuantity,
-    ) &&
-    watchedQuantity > 0
-      ? Math.min(
-          watchedQuantity,
-          maxQuantity,
-        )
-      : 1;
+    useWatch({
+      control,
+      name: "quantity",
+    }) ?? 1;
+
+  const wilayaCode =
+    useWatch({
+      control,
+      name: "wilayaCode",
+    }) ?? firstWilayaCode;
+
+  const deliveryType =
+    useWatch({
+      control,
+      name: "deliveryType",
+    }) ?? "desk";
 
   const selectedWilaya =
-    deliveryPrices.find(
+    safeDeliveryPrices.find(
       (item) =>
         item.wilaya_code ===
         Number(
-          watchedWilayaCode,
+          wilayaCode,
         ),
     );
 
   const subtotal =
     book.price *
-    quantity;
+    Number(
+      quantity || 1,
+    );
+
+  const baseDeliveryFee =
+    selectedWilaya
+      ? deliveryType ===
+        "home"
+        ? selectedWilaya.home_price
+        : selectedWilaya.desk_price
+      : 0;
 
   const qualifiesForFreeDelivery =
     freeDeliveryThreshold !==
       null &&
+    freeDeliveryThreshold >
+      0 &&
     subtotal >=
       freeDeliveryThreshold;
 
-  const normalDeliveryFee =
-    selectedWilaya
-      ? deliveryType ===
-        "home"
-        ? selectedWilaya
-            .home_price
-        : selectedWilaya
-            .desk_price
-      : 0;
-
-  const deliveryFee =
-    selectedWilaya &&
+  const displayedDeliveryFee =
     qualifiesForFreeDelivery
       ? 0
-      : normalDeliveryFee;
+      : baseDeliveryFee;
 
-  const total =
+  const displayedTotal =
     subtotal +
-    deliveryFee;
+    displayedDeliveryFee;
 
-  function applyServerErrors(
-    result: CreateOrderActionResult,
-  ) {
-    if (
-      !result.fieldErrors
-    ) {
-      setError(
-        "root.server",
-        {
-          type: "server",
-          message:
-            result.message,
-        },
+  function decreaseQuantity() {
+    const next =
+      Math.max(
+        1,
+        Number(
+          quantity,
+        ) - 1,
       );
 
-      return;
-    }
+    setValue(
+      "quantity",
+      next,
+      {
+        shouldDirty:
+          true,
 
-    let hasFieldError =
-      false;
+        shouldValidate:
+          true,
+      },
+    );
+  }
 
-    for (
-      const [
-        field,
-        messages,
-      ] of Object.entries(
-        result.fieldErrors,
-      )
-    ) {
-      const message =
-        messages?.[0];
-
-      if (!message) {
-        continue;
-      }
-
-      hasFieldError =
-        true;
-
-      setError(
-        field as FieldPath<OrderInput>,
-        {
-          type: "server",
-          message,
-        },
+  function increaseQuantity() {
+    const next =
+      Math.min(
+        maxQuantity,
+        Number(
+          quantity,
+        ) + 1,
       );
-    }
 
-    if (
-      !hasFieldError
-    ) {
-      setError(
-        "root.server",
-        {
-          type: "server",
-          message:
-            result.message,
-        },
-      );
-    }
+    setValue(
+      "quantity",
+      next,
+      {
+        shouldDirty:
+          true,
+
+        shouldValidate:
+          true,
+      },
+    );
   }
 
   async function onSubmit(
     values: OrderInput,
   ) {
-    clearErrors(
-      "root.server",
-    );
+    try {
+      const result =
+        await createOrderAction(
+          values,
+        );
 
-    /*
-     * On success the Server Action redirects.
-     * If execution returns here, it is an error.
-     */
-    const result =
-      await createOrderAction(
-        values,
+      /*
+       * Successful createOrderAction redirects to
+       * /order-success, so only failures normally
+       * return here.
+       */
+      if (
+        result &&
+        result.success ===
+          false
+      ) {
+        toast.error(
+          result.message,
+        );
+      }
+    } catch (
+      error
+    ) {
+      /*
+       * Next.js redirect exceptions are handled by
+       * the framework. Unexpected failures are logged.
+       */
+      if (
+        error instanceof
+          Error &&
+        error.message.includes(
+          "NEXT_REDIRECT",
+        )
+      ) {
+        throw error;
+      }
+
+      console.error(
+        "فشل إرسال الطلب:",
+        error,
       );
 
-    applyServerErrors(
-      result,
+      toast.error(
+        "تعذر إرسال الطلب. حاول مرة أخرى.",
+      );
+    }
+  }
+
+  if (
+    safeDeliveryPrices.length ===
+    0
+  ) {
+    return (
+      <div
+        role="alert"
+        className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm leading-7 text-destructive"
+      >
+        أسعار التوصيل غير متوفرة
+        حالياً. يرجى المحاولة لاحقاً.
+      </div>
     );
   }
 
   return (
     <form
-      onSubmit={
-        handleSubmit(
+      onSubmit={(
+        event,
+      ) => {
+        void handleSubmit(
           onSubmit,
-        )
-      }
+        )(event);
+      }}
       className="space-y-5"
     >
       <input
@@ -320,17 +321,88 @@ function OrderFormFields({
         )}
       />
 
-      <div className="rounded-xl bg-muted p-4">
-        <p className="text-sm font-semibold">
-          {book.name}
-        </p>
+      <div className="rounded-xl bg-muted/60 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold">
+              الكمية
+            </p>
 
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatPrice(
-            book.price,
-          )}{" "}
-          للنسخة
-        </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              المتوفر:{" "}
+              {
+                book.stock
+              }
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={
+                decreaseQuantity
+              }
+              disabled={
+                Number(
+                  quantity,
+                ) <= 1
+              }
+              className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+              aria-label="إنقاص الكمية"
+            >
+              <Minus
+                className="size-4"
+                aria-hidden="true"
+              />
+            </button>
+
+            <input
+              type="number"
+              min={1}
+              max={
+                maxQuantity
+              }
+              inputMode="numeric"
+              className="h-9 w-14 rounded-lg border border-input bg-background text-center text-sm font-semibold outline-none"
+              {...register(
+                "quantity",
+                {
+                  valueAsNumber:
+                    true,
+                },
+              )}
+            />
+
+            <button
+              type="button"
+              onClick={
+                increaseQuantity
+              }
+              disabled={
+                Number(
+                  quantity,
+                ) >=
+                maxQuantity
+              }
+              className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+              aria-label="زيادة الكمية"
+            >
+              <Plus
+                className="size-4"
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        </div>
+
+        {errors.quantity ? (
+          <p className="mt-2 text-xs text-destructive">
+            {
+              errors.quantity
+                .message
+            }
+          </p>
+        ) : null}
       </div>
 
       <div>
@@ -345,24 +417,27 @@ function OrderFormFields({
           id="order-full-name"
           type="text"
           autoComplete="name"
-          disabled={
-            isSubmitting
-          }
+          placeholder="الاسم واللقب"
           className={
-            inputClassName
+            fieldClassName(
+              Boolean(
+                errors.fullName,
+              ),
+            )
           }
           {...register(
             "fullName",
           )}
         />
 
-        <FieldError
-          message={
-            errors
-              .fullName
-              ?.message
-          }
-        />
+        {errors.fullName ? (
+          <p className="mt-2 text-xs text-destructive">
+            {
+              errors.fullName
+                .message
+            }
+          </p>
+        ) : null}
       </div>
 
       <div>
@@ -377,24 +452,27 @@ function OrderFormFields({
           id="order-phone"
           type="tel"
           dir="ltr"
+          inputMode="tel"
           autoComplete="tel"
-          placeholder="0550 00 00 00"
-          disabled={
-            isSubmitting
-          }
-          className={`${inputClassName} text-end`}
+          placeholder="05XXXXXXXX"
+          className={`${fieldClassName(
+            Boolean(
+              errors.phone,
+            ),
+          )} text-end`}
           {...register(
             "phone",
           )}
         />
 
-        <FieldError
-          message={
-            errors
-              .phone
-              ?.message
-          }
-        />
+        {errors.phone ? (
+          <p className="mt-2 text-xs text-destructive">
+            {
+              errors.phone
+                .message
+            }
+          </p>
+        ) : null}
       </div>
 
       <div>
@@ -407,31 +485,25 @@ function OrderFormFields({
 
         <select
           id="order-wilaya"
-          disabled={
-            isSubmitting
-          }
           className={
-            inputClassName
+            fieldClassName(
+              Boolean(
+                errors.wilayaCode,
+              ),
+            )
           }
           {...register(
             "wilayaCode",
             {
-              setValueAs:
-                (value) =>
-                  value === ""
-                    ? 0
-                    : Number(
-                        value,
-                      ),
+              valueAsNumber:
+                true,
             },
           )}
         >
-          <option value="">
-            اختر الولاية
-          </option>
-
-          {deliveryPrices.map(
-            (wilaya) => (
+          {safeDeliveryPrices.map(
+            (
+              wilaya,
+            ) => (
               <option
                 key={
                   wilaya.wilaya_code
@@ -448,65 +520,83 @@ function OrderFormFields({
           )}
         </select>
 
-        <FieldError
-          message={
-            errors
-              .wilayaCode
-              ?.message
-          }
-        />
+        {errors.wilayaCode ? (
+          <p className="mt-2 text-xs text-destructive">
+            {
+              errors
+                .wilayaCode
+                .message
+            }
+          </p>
+        ) : null}
       </div>
 
       <fieldset>
         <legend className="mb-3 text-sm font-semibold">
-          نوع التوصيل
+          طريقة التوصيل
         </legend>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-4 transition-colors has-checked:border-primary has-checked:bg-accent">
-            <input
-              type="radio"
-              value="home"
-              disabled={
-                isSubmitting
-              }
-              className="size-4 accent-primary"
-              {...register(
-                "deliveryType",
-              )}
-            />
-
-            <span className="text-sm font-medium">
-              توصيل للمنزل
-            </span>
-          </label>
-
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-border p-4 transition-colors has-checked:border-primary has-checked:bg-accent">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition-colors has-checked:border-primary has-checked:bg-primary/5">
             <input
               type="radio"
               value="desk"
-              disabled={
-                isSubmitting
-              }
-              className="size-4 accent-primary"
+              className="mt-1 accent-primary"
               {...register(
                 "deliveryType",
               )}
             />
 
-            <span className="text-sm font-medium">
-              توصيل للمكتب
+            <span>
+              <span className="block text-sm font-semibold">
+                مكتب التوصيل
+              </span>
+
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {selectedWilaya
+                  ? formatPrice(
+                      selectedWilaya.desk_price,
+                    )
+                  : ""}
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition-colors has-checked:border-primary has-checked:bg-primary/5">
+            <input
+              type="radio"
+              value="home"
+              className="mt-1 accent-primary"
+              {...register(
+                "deliveryType",
+              )}
+            />
+
+            <span>
+              <span className="block text-sm font-semibold">
+                التوصيل إلى المنزل
+              </span>
+
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {selectedWilaya
+                  ? formatPrice(
+                      selectedWilaya.home_price,
+                    )
+                  : ""}
+              </span>
             </span>
           </label>
         </div>
 
-        <FieldError
-          message={
-            errors
-              .deliveryType
-              ?.message
-          }
-        />
+        {errors.deliveryType ? (
+          <p className="mt-2 text-xs text-destructive">
+            {
+              errors
+                .deliveryType
+                .message
+            }
+          </p>
+        ) : null}
       </fieldset>
 
       {deliveryType ===
@@ -516,32 +606,34 @@ function OrderFormFields({
             htmlFor="order-address"
             className="mb-2 block text-sm font-semibold"
           >
-            العنوان
+            عنوان المنزل
           </label>
 
           <input
             id="order-address"
             type="text"
             autoComplete="street-address"
-            disabled={
-              isSubmitting
-            }
-            placeholder="البلدية، الحي، الشارع..."
+            placeholder="البلدية، الحي، العنوان..."
             className={
-              inputClassName
+              fieldClassName(
+                Boolean(
+                  errors.address,
+                ),
+              )
             }
             {...register(
               "address",
             )}
           />
 
-          <FieldError
-            message={
-              errors
-                .address
-                ?.message
-            }
-          />
+          {errors.address ? (
+            <p className="mt-2 text-xs text-destructive">
+              {
+                errors.address
+                  .message
+              }
+            </p>
+          ) : null}
         </div>
       ) : null}
 
@@ -551,8 +643,8 @@ function OrderFormFields({
           className="mb-2 block text-sm font-semibold"
         >
           ملاحظات
-
-          <span className="ms-1 font-normal text-muted-foreground">
+          <span className="font-normal text-muted-foreground">
+            {" "}
             (اختياري)
           </span>
         </label>
@@ -560,107 +652,75 @@ function OrderFormFields({
         <textarea
           id="order-notes"
           rows={3}
-          disabled={
-            isSubmitting
-          }
-          placeholder="أي معلومات إضافية حول الطلب أو التوصيل"
-          className="w-full resize-y rounded-xl border border-input bg-background px-3 py-3 text-sm leading-7 outline-none transition placeholder:text-muted-foreground focus:border-primary/50 focus:ring-2 focus:ring-ring/20 disabled:cursor-not-allowed disabled:opacity-50"
+          placeholder="أي معلومات إضافية للطلب..."
+          className="w-full resize-y rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-2 focus:ring-ring/20"
           {...register(
             "notes",
           )}
         />
 
-        <FieldError
-          message={
-            errors
-              .notes
-              ?.message
-          }
-        />
-      </div>
-
-      <div>
-        <label
-          htmlFor="order-quantity"
-          className="mb-2 block text-sm font-semibold"
-        >
-          الكمية
-        </label>
-
-        <input
-          id="order-quantity"
-          type="number"
-          min={1}
-          max={
-            maxQuantity
-          }
-          step={1}
-          disabled={
-            isSubmitting
-          }
-          className={
-            inputClassName
-          }
-          {...register(
-            "quantity",
+        {errors.notes ? (
+          <p className="mt-2 text-xs text-destructive">
             {
-              valueAsNumber:
-                true,
-            },
-          )}
-        />
-
-        <p className="mt-2 text-xs text-muted-foreground">
-          الحد الأقصى لهذا
-          الطلب:{" "}
-          {maxQuantity}
-        </p>
-
-        <FieldError
-          message={
-            errors
-              .quantity
-              ?.message
-          }
-        />
+              errors.notes
+                .message
+            }
+          </p>
+        ) : null}
       </div>
 
-      {/* Live summary */}
-      <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-4 text-sm">
-        <div className="flex items-center justify-between gap-4">
+      <div className="space-y-3 rounded-2xl border border-border bg-muted/30 p-4">
+        <div className="flex items-center gap-2 font-semibold">
+          <ShoppingBag
+            className="size-4"
+            aria-hidden="true"
+          />
+
+          ملخص الطلب
+        </div>
+
+        <div className="flex items-center justify-between gap-4 text-sm">
           <span className="text-muted-foreground">
-            سعر الكتب
+            الكتاب ×{" "}
+            {
+              quantity
+            }
           </span>
 
-          <span className="font-semibold">
+          <span className="font-medium">
             {formatPrice(
               subtotal,
             )}
           </span>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground">
+        <div className="flex items-center justify-between gap-4 text-sm">
+          <span className="inline-flex items-center gap-2 text-muted-foreground">
+            <Truck
+              className="size-4"
+              aria-hidden="true"
+            />
+
             التوصيل
           </span>
 
-          <span className="font-semibold">
-            {!selectedWilaya
-              ? "اختر الولاية"
-              : deliveryFee ===
-                  0
-                ? "مجاني"
-                : formatPrice(
-                    deliveryFee,
-                  )}
+          <span className="font-medium">
+            {displayedDeliveryFee ===
+            0
+              ? "مجاني"
+              : formatPrice(
+                  displayedDeliveryFee,
+                )}
           </span>
         </div>
 
         {freeDeliveryThreshold !==
-        null ? (
+          null &&
+        freeDeliveryThreshold >
+          0 ? (
           <p className="text-xs leading-6 text-muted-foreground">
-            التوصيل مجاني عند
-            بلوغ قيمة الطلب{" "}
+            التوصيل مجاني للطلبات
+            ابتداءً من{" "}
             {formatPrice(
               freeDeliveryThreshold,
             )}
@@ -668,52 +728,32 @@ function OrderFormFields({
           </p>
         ) : null}
 
-        <div className="border-t border-border pt-3">
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-bold">
-              الإجمالي
-            </span>
-
-            <span className="text-lg font-bold text-primary">
-              {formatPrice(
-                total,
-              )}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-muted-foreground">
-            طريقة الدفع
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-3">
+          <span className="font-bold">
+            الإجمالي المتوقع
           </span>
 
-          <span className="font-semibold">
-            الدفع عند الاستلام
+          <span className="text-lg font-bold text-primary">
+            {formatPrice(
+              displayedTotal,
+            )}
           </span>
         </div>
+
+        <p className="text-xs leading-6 text-muted-foreground">
+          السعر النهائي ورسوم التوصيل
+          يتم التحقق منهما في الخادم
+          عند إنشاء الطلب.
+        </p>
       </div>
 
-      {errors.root
-        ?.server
-        ?.message ? (
-        <div
-          role="alert"
-          className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-medium text-destructive"
-        >
-          {
-            errors.root
-              .server
-              .message
-          }
-        </div>
-      ) : null}
-
-      <Button
+      <button
         type="submit"
         disabled={
-          isSubmitting
+          isSubmitting ||
+          book.stock <= 0
         }
-        className="h-12 w-full"
+        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
       >
         {isSubmitting ? (
           <>
@@ -725,9 +765,20 @@ function OrderFormFields({
             جار إرسال الطلب...
           </>
         ) : (
-          "تأكيد الطلب"
+          <>
+            <ShoppingBag
+              className="size-4"
+              aria-hidden="true"
+            />
+
+            اطلب الآن
+          </>
         )}
-      </Button>
+      </button>
+
+      <p className="text-center text-xs text-muted-foreground">
+        الدفع عند الاستلام
+      </p>
     </form>
   );
 }
@@ -737,96 +788,37 @@ export default function OrderForm({
   deliveryPrices,
   freeDeliveryThreshold,
 }: OrderFormProps) {
-  const [
-    open,
-    setOpen,
-  ] = useState(false);
-
-  if (
-    book.stock === 0
-  ) {
-    return (
-      <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-center font-semibold text-destructive">
-        نفدت الكمية
-      </div>
-    );
-  }
-
+  /*
+   * Keep these props explicit here.
+   * The previous implementation dropped
+   * deliveryPrices before OrderFormFields,
+   * which caused deliveryPrices.find()
+   * to crash at runtime.
+   */
   return (
-    <>
-      {/* Mobile */}
-      <div className="lg:hidden">
-        <Dialog
-          open={open}
-          onOpenChange={
-            setOpen
-          }
-        >
-          <DialogTrigger
-            render={
-              <Button
-                type="button"
-                className="h-12 w-full"
-              />
-            }
-          >
-            اطلب الآن
-          </DialogTrigger>
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold">
+          اطلب الكتاب
+        </h2>
 
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                إتمام الطلب
-              </DialogTitle>
-
-              <DialogDescription>
-                أدخل معلوماتك لإرسال
-                طلبك. الدفع عند
-                الاستلام.
-              </DialogDescription>
-            </DialogHeader>
-
-            <OrderFormFields
-              book={
-                book
-              }
-              deliveryPrices={
-                deliveryPrices
-              }
-              freeDeliveryThreshold={
-                freeDeliveryThreshold
-              }
-            />
-          </DialogContent>
-        </Dialog>
+        <p className="mt-2 text-sm leading-7 text-muted-foreground">
+          أدخل معلوماتك واختر طريقة
+          التوصيل. الدفع عند الاستلام.
+        </p>
       </div>
 
-      {/* Desktop */}
-      <div className="hidden rounded-2xl border border-border bg-card p-6 lg:block">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold">
-            اطلب الآن
-          </h2>
-
-          <p className="mt-2 text-sm leading-7 text-muted-foreground">
-            أدخل معلوماتك لإرسال
-            الطلب. الدفع عند
-            الاستلام.
-          </p>
-        </div>
-
-        <OrderFormFields
-          book={
-            book
-          }
-          deliveryPrices={
-            deliveryPrices
-          }
-          freeDeliveryThreshold={
-            freeDeliveryThreshold
-          }
-        />
-      </div>
-    </>
+      <OrderFormFields
+        book={
+          book
+        }
+        deliveryPrices={
+          deliveryPrices
+        }
+        freeDeliveryThreshold={
+          freeDeliveryThreshold
+        }
+      />
+    </div>
   );
 }

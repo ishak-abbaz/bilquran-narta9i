@@ -1,113 +1,258 @@
-import { createClient } from "@/lib/supabase/server";
+import "server-only";
+
+import {
+  createClient,
+} from "@/lib/supabase/server";
 import type {
   Category,
   Product,
 } from "@/types";
-
-const PRODUCT_SELECT = `
-  *,
-  category:categories(*)
-`;
-
-const PRODUCT_WITH_REQUIRED_CATEGORY_SELECT = `
-  *,
-  category:categories!inner(*)
-`;
-
-function escapePostgrestIlikeSearch(
-  value: string,
-): string {
-  /*
-   * First escape characters that have special meaning
-   * inside PostgreSQL LIKE / ILIKE patterns.
-   */
-  const escapedLikePattern = value
-    .replace(/\\/g, "\\\\")
-    .replace(/%/g, "\\%")
-    .replace(/_/g, "\\_");
-
-  /*
-   * .or() uses raw PostgREST filter syntax.
-   * Values are wrapped in double quotes below, so
-   * backslashes and double quotes must also be escaped.
-   */
-  return escapedLikePattern
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"');
-}
-
-export async function getCategories(): Promise<
-  Category[]
-> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("categories")
-    .select(
-      "id, name, slug, image_url, sort_order",
-    )
-    .order("sort_order", {
-      ascending: true,
-    });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ?? [];
-}
-
-export async function getFeaturedProducts(): Promise<
-  Product[]
-> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("is_featured", true)
-    .eq("is_active", true)
-    .order("created_at", {
-      ascending: false,
-    });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ?? [];
-}
-
-export async function getNewArrivals(
-  limit = 8,
-): Promise<Product[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("is_active", true)
-    .order("created_at", {
-      ascending: false,
-    })
-    .limit(limit);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return data ?? [];
-}
 
 type ProductSort =
   | "newest"
   | "price-asc"
   | "price-desc";
 
-interface GetProductsParams {
+type GetProductsParams = {
   category?: string;
   sort?: ProductSort;
   search?: string;
+};
+
+function normalizeSlug(
+  value: string,
+): string {
+  let decoded =
+    value;
+
+  try {
+    decoded =
+      decodeURIComponent(
+        value,
+      );
+  } catch {
+    decoded =
+      value;
+  }
+
+  return decoded
+    .normalize("NFKC")
+    .trim();
+}
+
+function escapePostgrestSearch(
+  value: string,
+): string {
+  return value
+    .replace(
+      /\\/g,
+      "\\\\",
+    )
+    .replace(
+      /%/g,
+      "\\%",
+    )
+    .replace(
+      /_/g,
+      "\\_",
+    )
+    .replace(
+      /,/g,
+      "\\,",
+    )
+    .replace(
+      /\(/g,
+      "\\(",
+    )
+    .replace(
+      /\)/g,
+      "\\)",
+    );
+}
+
+export async function getCategories(): Promise<
+  Category[]
+> {
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("categories")
+    .select(`
+      id,
+      name,
+      slug,
+      image_url,
+      sort_order
+    `)
+    .order(
+      "sort_order",
+      {
+        ascending: true,
+      },
+    )
+    .order(
+      "name",
+      {
+        ascending: true,
+      },
+    );
+
+  if (error) {
+    console.error(
+      "فشل تحميل التصنيفات:",
+      error,
+    );
+
+    throw new Error(
+      "تعذر تحميل التصنيفات.",
+    );
+  }
+
+  return (
+    data ?? []
+  ) as Category[];
+}
+
+export async function getFeaturedProducts(): Promise<
+  Product[]
+> {
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select(`
+      id,
+      name,
+      slug,
+      description,
+      publisher,
+      riwaya,
+      price,
+      category_id,
+      images,
+      stock,
+      is_featured,
+      is_active,
+      created_at,
+      category:categories (
+        id,
+        name,
+        slug,
+        image_url,
+        sort_order
+      )
+    `)
+    .eq(
+      "is_featured",
+      true,
+    )
+    .eq(
+      "is_active",
+      true,
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    );
+
+  if (error) {
+    console.error(
+      "فشل تحميل الكتب المميزة:",
+      error,
+    );
+
+    throw new Error(
+      "تعذر تحميل الكتب المميزة.",
+    );
+  }
+
+  return (
+    data ?? []
+  ) as unknown as Product[];
+}
+
+export async function getNewArrivals(
+  limit = 8,
+): Promise<Product[]> {
+  const safeLimit =
+    Math.min(
+      Math.max(
+        Math.trunc(
+          limit,
+        ),
+        1,
+      ),
+      50,
+    );
+
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select(`
+      id,
+      name,
+      slug,
+      description,
+      publisher,
+      riwaya,
+      price,
+      category_id,
+      images,
+      stock,
+      is_featured,
+      is_active,
+      created_at,
+      category:categories (
+        id,
+        name,
+        slug,
+        image_url,
+        sort_order
+      )
+    `)
+    .eq(
+      "is_active",
+      true,
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    )
+    .limit(
+      safeLimit,
+    );
+
+  if (error) {
+    console.error(
+      "فشل تحميل أحدث الكتب:",
+      error,
+    );
+
+    throw new Error(
+      "تعذر تحميل أحدث الكتب.",
+    );
+  }
+
+  return (
+    data ?? []
+  ) as unknown as Product[];
 }
 
 export async function getProducts({
@@ -117,131 +262,294 @@ export async function getProducts({
 }: GetProductsParams = {}): Promise<
   Product[]
 > {
-  const supabase = await createClient();
+  const supabase =
+    await createClient();
 
-  /*
-   * !inner is required when filtering by a field
-   * belonging to the embedded categories relation.
-   * Without it, the filter can affect only the
-   * embedded relation instead of excluding products.
-   */
-  let query = supabase
-    .from("products")
-    .select(
-      category
-        ? PRODUCT_WITH_REQUIRED_CATEGORY_SELECT
-        : PRODUCT_SELECT,
-    )
-    .eq("is_active", true);
+  let query =
+    supabase
+      .from("products")
+      .select(`
+        id,
+        name,
+        slug,
+        description,
+        publisher,
+        riwaya,
+        price,
+        category_id,
+        images,
+        stock,
+        is_featured,
+        is_active,
+        created_at,
+        category:categories!inner (
+          id,
+          name,
+          slug,
+          image_url,
+          sort_order
+        )
+      `)
+      .eq(
+        "is_active",
+        true,
+      );
 
-  if (category) {
-    query = query.eq(
-      "categories.slug",
-      category,
-    );
+  if (
+    category
+  ) {
+    query =
+      query.eq(
+        "categories.slug",
+        normalizeSlug(
+          category,
+        ),
+      );
   }
 
   const normalizedSearch =
-    search?.trim();
+    search
+      ?.trim()
+      .slice(
+        0,
+        100,
+      );
 
-  if (normalizedSearch) {
-    const escapedSearch =
-      escapePostgrestIlikeSearch(
+  if (
+    normalizedSearch
+  ) {
+    const escaped =
+      escapePostgrestSearch(
         normalizedSearch,
       );
 
-    const pattern =
-      `"%${escapedSearch}%"`;
-
-    query = query.or(
-      `name.ilike.${pattern},publisher.ilike.${pattern}`,
-    );
+    query =
+      query.or(
+        `name.ilike.%${escaped}%,publisher.ilike.%${escaped}%`,
+      );
   }
 
-  switch (sort) {
+  switch (
+    sort
+  ) {
     case "price-asc":
-      query = query.order(
-        "price",
-        {
-          ascending: true,
-        },
-      );
+      query =
+        query.order(
+          "price",
+          {
+            ascending: true,
+          },
+        );
+
       break;
 
     case "price-desc":
-      query = query.order(
-        "price",
-        {
-          ascending: false,
-        },
-      );
+      query =
+        query.order(
+          "price",
+          {
+            ascending: false,
+          },
+        );
+
       break;
 
-    case "newest":
     default:
-      query = query.order(
-        "created_at",
-        {
-          ascending: false,
-        },
-      );
-      break;
+      query =
+        query.order(
+          "created_at",
+          {
+            ascending: false,
+          },
+        );
   }
 
-  const { data, error } =
-    await query;
+  const {
+    data,
+    error,
+  } = await query;
 
   if (error) {
-    throw new Error(error.message);
+    console.error(
+      "فشل تحميل الكتب:",
+      error,
+    );
+
+    throw new Error(
+      "تعذر تحميل الكتب.",
+    );
   }
 
-  return data ?? [];
+  return (
+    data ?? []
+  ) as unknown as Product[];
 }
 
 export async function getProductBySlug(
-  slug: string,
-): Promise<Product | null> {
-  const supabase = await createClient();
+  rawSlug: string,
+): Promise<
+  Product | null
+> {
+  const slug =
+    normalizeSlug(
+      rawSlug,
+    );
 
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .single();
-
-  if (error) {
-    if (error.code === "PGRST116") {
-      return null;
-    }
-
-    throw new Error(error.message);
+  if (!slug) {
+    return null;
   }
 
-  return data;
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select(`
+      id,
+      name,
+      slug,
+      description,
+      publisher,
+      riwaya,
+      price,
+      category_id,
+      images,
+      stock,
+      is_featured,
+      is_active,
+      created_at,
+      category:categories (
+        id,
+        name,
+        slug,
+        image_url,
+        sort_order
+      )
+    `)
+    .eq(
+      "slug",
+      slug,
+    )
+    .eq(
+      "is_active",
+      true,
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "فشل تحميل الكتاب:",
+      {
+        slug,
+        error,
+      },
+    );
+
+    throw new Error(
+      "تعذر تحميل الكتاب.",
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return data as unknown as Product;
 }
 
 export async function getRelatedProducts(
-  categoryId: string,
-  excludeId: string,
+  product:
+    Pick<
+      Product,
+      | "id"
+      | "category_id"
+    >,
   limit = 4,
 ): Promise<Product[]> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("category_id", categoryId)
-    .eq("is_active", true)
-    .neq("id", excludeId)
-    .order("created_at", {
-      ascending: false,
-    })
-    .limit(limit);
-
-  if (error) {
-    throw new Error(error.message);
+  if (
+    !product.category_id
+  ) {
+    return [];
   }
 
-  return data ?? [];
+  const safeLimit =
+    Math.min(
+      Math.max(
+        Math.trunc(
+          limit,
+        ),
+        1,
+      ),
+      12,
+    );
+
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from("products")
+    .select(`
+      id,
+      name,
+      slug,
+      description,
+      publisher,
+      riwaya,
+      price,
+      category_id,
+      images,
+      stock,
+      is_featured,
+      is_active,
+      created_at,
+      category:categories (
+        id,
+        name,
+        slug,
+        image_url,
+        sort_order
+      )
+    `)
+    .eq(
+      "is_active",
+      true,
+    )
+    .eq(
+      "category_id",
+      product.category_id,
+    )
+    .neq(
+      "id",
+      product.id,
+    )
+    .order(
+      "created_at",
+      {
+        ascending: false,
+      },
+    )
+    .limit(
+      safeLimit,
+    );
+
+  if (error) {
+    console.error(
+      "فشل تحميل الكتب المشابهة:",
+      error,
+    );
+
+    throw new Error(
+      "تعذر تحميل الكتب المشابهة.",
+    );
+  }
+
+  return (
+    data ?? []
+  ) as unknown as Product[];
 }

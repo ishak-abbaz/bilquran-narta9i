@@ -15,8 +15,10 @@ import {
   getRelatedProducts,
 } from "@/lib/data/products";
 import {
+  buildPageMetadata,
+} from "@/lib/seo/metadata";
+import {
   buildBookStructuredData,
-  getProductSeoBySlug,
 } from "@/lib/seo/products";
 import {
   getStoreSettings,
@@ -36,75 +38,44 @@ export async function generateMetadata({
   } = await params;
 
   const product =
-    await getProductSeoBySlug(
+    await getProductBySlug(
       slug,
     );
 
   if (!product) {
-    return {
+    return buildPageMetadata({
       title:
         "الكتاب غير موجود",
 
       description:
-        "تعذر العثور على الكتاب المطلوب.",
-    };
+        "تعذر العثور على هذا الكتاب.",
+
+      path:
+        `/product/${encodeURIComponent(
+          slug,
+        )}`,
+
+      noIndex:
+        true,
+    });
   }
 
-  const description =
-    product.description ??
-    (product.publisher
-      ? `${product.name}، من إصدار ${product.publisher}.`
-      : `${product.name}، متوفر ضمن مجموعة المصاحف والكتب الإسلامية.`);
-
-  const images =
-    product.images.slice(
-      0,
-      3,
-    );
-
-  return {
+  return buildPageMetadata({
     title:
       product.name,
 
-    description,
+    description:
+      product.description ??
+      `اطلب ${product.name} من متجر بالقرآن نرتقي مع التوصيل داخل الجزائر والدفع عند الاستلام.`,
 
-    openGraph: {
-      title:
-        product.name,
+    path:
+      `/product/${encodeURIComponent(
+        product.slug,
+      )}`,
 
-      description,
-
-      images:
-        images.map(
-          (url) => ({
-            url,
-            alt:
-              product.name,
-          }),
-        ),
-    },
-
-    twitter: {
-      card:
-        images.length >
-        0
-          ? "summary_large_image"
-          : "summary",
-
-      title:
-        product.name,
-
-      description,
-
-      images:
-        images.length >
-        0
-          ? [
-              images[0],
-            ]
-          : undefined,
-    },
-  };
+    image:
+      product.images[0],
+  });
 }
 
 export default async function ProductPage({
@@ -123,34 +94,56 @@ export default async function ProductPage({
     notFound();
   }
 
-  const relatedProductsPromise =
-    product.category_id
-      ? getRelatedProducts(
-          product.category_id,
-          product.id,
-          4,
-        )
-      : Promise.resolve(
-          [],
-        );
-
   const [
     relatedProducts,
     deliveryPrices,
     settings,
   ] = await Promise.all([
-    relatedProductsPromise,
+    getRelatedProducts(
+      product,
+      4,
+    ),
+
     getDeliveryPrices(),
+
     getStoreSettings(),
   ]);
 
   const structuredData =
-    buildBookStructuredData(
-      product,
-    );
+    buildBookStructuredData({
+      slug:
+        product.slug,
+
+      name:
+        product.name,
+
+      description:
+        product.description,
+
+      publisher:
+        product.publisher,
+
+      riwaya:
+        product.riwaya,
+
+      price:
+        product.price,
+
+      images:
+        product.images,
+
+      stock:
+        product.stock,
+
+      is_active:
+        product.is_active,
+
+      created_at:
+        product.created_at,
+    });
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -164,44 +157,42 @@ export default async function ProductPage({
         }}
       />
 
-      <section>
-        <ProductDetailsClient
-          product={
-            product
-          }
-          deliveryPrices={
-            deliveryPrices
-          }
-          freeDeliveryThreshold={
-            settings
-              .free_delivery_threshold ??
-            null
-          }
-        />
-      </section>
+      <ProductDetailsClient
+        product={
+          product
+        }
+        deliveryPrices={
+          deliveryPrices
+        }
+        freeDeliveryThreshold={
+          settings.free_delivery_threshold
+        }
+      />
 
       {relatedProducts.length >
       0 ? (
-        <section className="mt-20 space-y-8">
-          <div>
+        <section className="mt-20">
+          <div className="mb-8">
             <p className="text-sm font-semibold text-primary">
-              من نفس التصنيف
+              قد يعجبك أيضاً
             </p>
 
-            <h2 className="mt-2 text-2xl font-bold sm:text-3xl">
-              كتب مشابهة
+            <h2 className="mt-2 text-2xl font-bold">
+              كتب من نفس التصنيف
             </h2>
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:gap-5 lg:grid-cols-4">
             {relatedProducts.map(
-              (item) => (
+              (
+                relatedProduct,
+              ) => (
                 <ProductCard
                   key={
-                    item.id
+                    relatedProduct.id
                   }
                   product={
-                    item
+                    relatedProduct
                   }
                 />
               ),

@@ -10,18 +10,22 @@ import {
   formatPrice,
 } from "@/lib/utils";
 import type {
-  DeliveryPrice,
   Product,
 } from "@/types";
 
+type DeliveryPrice = {
+  wilaya_code: number;
+  wilaya_name: string;
+  home_price: number;
+  desk_price: number;
+};
+
 interface ProductDetailsClientProps {
   product: Product;
-
-  deliveryPrices:
-    DeliveryPrice[];
-
+  deliveryPrices: DeliveryPrice[];
   freeDeliveryThreshold:
-    number | null;
+    | number
+    | null;
 }
 
 export default function ProductDetailsClient({
@@ -50,7 +54,6 @@ export default function ProductDetailsClient({
 
   return (
     <div className="grid gap-10 lg:grid-cols-2 lg:gap-14">
-      {/* Gallery */}
       <div className="space-y-4">
         <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-border bg-muted">
           {selectedImage ? (
@@ -68,8 +71,8 @@ export default function ProductDetailsClient({
             />
           ) : (
             <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              لا توجد صورة
-              لهذا الكتاب
+              لا توجد صورة لهذا
+              الكتاب
             </div>
           )}
         </div>
@@ -125,16 +128,9 @@ export default function ProductDetailsClient({
               },
             )}
           </div>
-        ) : (
-          <div className="flex gap-3">
-            <div className="flex aspect-[3/4] w-16 items-center justify-center rounded-xl border border-dashed border-border bg-muted text-center text-[10px] text-muted-foreground sm:w-20">
-              لا توجد صورة
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
 
-      {/* Book details */}
       <div className="flex flex-col">
         {product.category ? (
           <p className="text-sm font-semibold text-primary">
@@ -147,7 +143,9 @@ export default function ProductDetailsClient({
         ) : null}
 
         <h1 className="mt-2 text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-          {product.name}
+          {
+            product.name
+          }
         </h1>
 
         <p className="mt-5 text-2xl font-bold">
@@ -176,8 +174,7 @@ export default function ProductDetailsClient({
 
               <dd className="font-medium">
                 {
-                  product
-                    .riwaya
+                  product.riwaya
                 }
               </dd>
             </div>
@@ -205,6 +202,18 @@ export default function ProductDetailsClient({
               )}
             </dd>
           </div>
+
+          <div className="grid grid-cols-[100px_1fr] gap-4 py-4 text-sm">
+            <dt className="font-semibold text-muted-foreground">
+              المخزون
+            </dt>
+
+            <dd className="font-medium">
+              {
+                product.stock
+              }
+            </dd>
+          </div>
         </dl>
 
         <div className="mt-8">
@@ -219,24 +228,27 @@ export default function ProductDetailsClient({
         </div>
 
         <div className="mt-10 border-t border-border pt-6">
-          <OrderForm
-            book={{
-              id:
-                product.id,
-              name:
-                product.name,
-              price:
-                product.price,
-              stock:
-                product.stock,
-            }}
-            deliveryPrices={
-              deliveryPrices
-            }
-            freeDeliveryThreshold={
-              freeDeliveryThreshold
-            }
-          />
+          {inStock ? (
+            <OrderForm
+              book={
+                product
+              }
+              deliveryPrices={
+                deliveryPrices
+              }
+              freeDeliveryThreshold={
+                freeDeliveryThreshold
+              }
+            />
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="h-12 w-full cursor-not-allowed rounded-xl bg-primary px-6 font-semibold text-primary-foreground opacity-50"
+            >
+              نفدت الكمية
+            </button>
+          )}
         </div>
       </div>
     </div>
