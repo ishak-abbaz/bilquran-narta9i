@@ -6,6 +6,9 @@ import {
 import {
   useRouter,
 } from "next/navigation";
+import {
+  toast,
+} from "sonner";
 
 import {
   updateOrderStatus,
@@ -39,41 +42,60 @@ type DeliveryType =
 
 type OrderItem = {
   id: string;
+
   product_name:
     | string
     | null;
+
   unit_price:
     | number
     | null;
+
   quantity: number;
 };
 
 type OrderData = {
   id: string;
-  order_number: number;
+
+  order_number:
+    | number
+    | string;
+
   customer_name: string;
   phone: string;
   wilaya: string;
-  delivery_type: DeliveryType;
+
+  delivery_type:
+    DeliveryType;
+
   address: string;
+
   notes:
     | string
     | null;
-  status: OrderStatus;
+
+  status:
+    OrderStatus;
+
   subtotal:
     | number
     | null;
+
   delivery_fee:
     | number
     | null;
+
   total:
     | number
     | null;
-  order_items: OrderItem[];
+
+  order_items:
+    OrderItem[];
 };
 
 type OrderStatusDialogProps = {
-  order: OrderData;
+  order:
+    OrderData;
 };
 
 const STATUS_OPTIONS: Array<{
@@ -81,24 +103,34 @@ const STATUS_OPTIONS: Array<{
   label: string;
 }> = [
   {
-    value: "pending",
-    label: "قيد الانتظار",
+    value:
+      "pending",
+    label:
+      "قيد الانتظار",
   },
   {
-    value: "confirmed",
-    label: "مؤكد",
+    value:
+      "confirmed",
+    label:
+      "مؤكد",
   },
   {
-    value: "shipped",
-    label: "تم الشحن",
+    value:
+      "shipped",
+    label:
+      "تم الشحن",
   },
   {
-    value: "delivered",
-    label: "تم التوصيل",
+    value:
+      "delivered",
+    label:
+      "تم التوصيل",
   },
   {
-    value: "cancelled",
-    label: "ملغي",
+    value:
+      "cancelled",
+    label:
+      "ملغي",
   },
 ];
 
@@ -142,16 +174,6 @@ function getWhatsAppNumber(
   return `213${digits}`;
 }
 
-function getDeliveryLabel(
-  deliveryType:
-    DeliveryType,
-) {
-  return deliveryType ===
-    "home"
-    ? "التوصيل إلى المنزل"
-    : "التوصيل إلى المكتب";
-}
-
 export default function OrderStatusDialog({
   order,
 }: OrderStatusDialogProps) {
@@ -164,25 +186,16 @@ export default function OrderStatusDialog({
   ] = useState(false);
 
   const [
-    pendingStatus,
-    setPendingStatus,
-  ] = useState<
-    OrderStatus | null
-  >(null);
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = useState("");
+    status,
+    setStatus,
+  ] = useState<OrderStatus>(
+    order.status,
+  );
 
   const [
     isUpdating,
     setIsUpdating,
   ] = useState(false);
-
-  const displayedStatus =
-    pendingStatus ??
-    order.status;
 
   const whatsappUrl =
     `https://wa.me/${getWhatsAppNumber(
@@ -190,19 +203,16 @@ export default function OrderStatusDialog({
     )}`;
 
   async function changeStatus(
-    value: OrderStatus,
+    nextStatus:
+      OrderStatus,
   ) {
     if (
-      value ===
-      displayedStatus
+      nextStatus ===
+      status
     ) {
       return;
     }
 
-    setErrorMessage("");
-    setPendingStatus(
-      value,
-    );
     setIsUpdating(
       true,
     );
@@ -211,26 +221,25 @@ export default function OrderStatusDialog({
       const result =
         await updateOrderStatus(
           order.id,
-          value,
+          nextStatus,
         );
 
       if (
         !result.success
       ) {
-        setPendingStatus(
-          null,
-        );
-
-        setErrorMessage(
+        toast.error(
           result.message,
         );
 
         return;
       }
 
-      setOpen(false);
-      setPendingStatus(
-        null,
+      setStatus(
+        nextStatus,
+      );
+
+      toast.success(
+        "تم تحديث حالة الطلب.",
       );
 
       router.refresh();
@@ -242,12 +251,8 @@ export default function OrderStatusDialog({
         error,
       );
 
-      setPendingStatus(
-        null,
-      );
-
-      setErrorMessage(
-        "تعذر تحديث حالة الطلب. حاول مرة أخرى.",
+      toast.error(
+        "تعذر تحديث حالة الطلب.",
       );
     } finally {
       setIsUpdating(
@@ -258,30 +263,12 @@ export default function OrderStatusDialog({
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={(
-        nextOpen,
-      ) => {
-        if (
-          isUpdating
-        ) {
-          return;
-        }
-
-        setErrorMessage("");
-
-        if (
-          !nextOpen
-        ) {
-          setPendingStatus(
-            null,
-          );
-        }
-
-        setOpen(
-          nextOpen,
-        );
-      }}
+      open={
+        open
+      }
+      onOpenChange={
+        setOpen
+      }
     >
       <DialogTrigger
         render={
@@ -305,87 +292,73 @@ export default function OrderStatusDialog({
           </DialogTitle>
 
           <DialogDescription>
-            معلومات العميل
+            تفاصيل العميل
             والكتاب وحالة الطلب.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          <section className="space-y-3 rounded-xl border border-border p-4">
-            <h3 className="font-semibold">
-              العميل
-            </h3>
+          <div className="rounded-xl border border-border p-4">
+            <div className="grid gap-3 text-sm">
+              <p>
+                <span className="text-muted-foreground">
+                  العميل:{" "}
+                </span>
 
-            <dl className="grid gap-3 text-sm">
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-muted-foreground">
-                  الاسم
-                </dt>
+                {
+                  order.customer_name
+                }
+              </p>
 
-                <dd className="text-end font-medium">
-                  {
-                    order.customer_name
-                  }
-                </dd>
-              </div>
+              <p>
+                <span className="text-muted-foreground">
+                  الولاية:{" "}
+                </span>
 
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-muted-foreground">
-                  الولاية
-                </dt>
+                {
+                  order.wilaya
+                }
+              </p>
 
-                <dd className="text-end font-medium">
-                  {
-                    order.wilaya
-                  }
-                </dd>
-              </div>
+              <p>
+                <span className="text-muted-foreground">
+                  التوصيل:{" "}
+                </span>
 
-              <div className="flex items-start justify-between gap-4">
-                <dt className="text-muted-foreground">
-                  نوع التوصيل
-                </dt>
-
-                <dd className="text-end font-medium">
-                  {getDeliveryLabel(
-                    order.delivery_type,
-                  )}
-                </dd>
-              </div>
+                {order.delivery_type ===
+                "home"
+                  ? "للمنزل"
+                  : "للمكتب"}
+              </p>
 
               {order.delivery_type ===
               "home" ? (
-                <div className="flex items-start justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    العنوان
-                  </dt>
+                <p>
+                  <span className="text-muted-foreground">
+                    العنوان:{" "}
+                  </span>
 
-                  <dd className="max-w-xs text-end font-medium">
-                    {
-                      order.address
-                    }
-                  </dd>
-                </div>
+                  {
+                    order.address
+                  }
+                </p>
               ) : null}
 
               {order.notes ? (
-                <div className="flex items-start justify-between gap-4">
-                  <dt className="text-muted-foreground">
-                    ملاحظات
-                  </dt>
+                <p>
+                  <span className="text-muted-foreground">
+                    ملاحظات:{" "}
+                  </span>
 
-                  <dd className="max-w-xs whitespace-pre-wrap text-end font-medium">
-                    {
-                      order.notes
-                    }
-                  </dd>
-                </div>
+                  {
+                    order.notes
+                  }
+                </p>
               ) : null}
-            </dl>
+            </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="mt-4 flex gap-2">
               <Button
-                type="button"
                 variant="outline"
                 render={
                   <a
@@ -397,7 +370,6 @@ export default function OrderStatusDialog({
               </Button>
 
               <Button
-                type="button"
                 variant="outline"
                 render={
                   <a
@@ -412,81 +384,68 @@ export default function OrderStatusDialog({
                 واتساب
               </Button>
             </div>
-          </section>
+          </div>
 
-          <section className="space-y-3">
+          <div className="space-y-3">
             <h3 className="font-semibold">
               الكتب
             </h3>
 
-            <div className="space-y-3">
-              {order.order_items.map(
-                (
-                  item,
-                ) => (
-                  <div
-                    key={
-                      item.id
-                    }
-                    className="rounded-xl border border-border p-4"
-                  >
-                    <p className="font-semibold">
-                      {item.product_name ??
-                        "كتاب محذوف"}
-                    </p>
+            {order.order_items.map(
+              (
+                item,
+              ) => (
+                <div
+                  key={
+                    item.id
+                  }
+                  className="rounded-xl border border-border p-4"
+                >
+                  <p className="font-semibold">
+                    {item.product_name ??
+                      "كتاب محذوف"}
+                  </p>
 
-                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">
-                          الكمية
-                        </p>
+                  <div className="mt-2 flex justify-between gap-4 text-sm text-muted-foreground">
+                    <span>
+                      الكمية:{" "}
+                      {
+                        item.quantity
+                      }
+                    </span>
 
-                        <p className="mt-1 font-medium">
-                          {
-                            item.quantity
-                          }
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-muted-foreground">
-                          سعر الوحدة
-                        </p>
-
-                        <p className="mt-1 font-medium">
-                          {formatPrice(
-                            item.unit_price ??
-                              0,
-                          )}
-                        </p>
-                      </div>
-                    </div>
+                    <span>
+                      {formatPrice(
+                        item.unit_price ??
+                          0,
+                      )}
+                    </span>
                   </div>
-                ),
-              )}
-            </div>
-          </section>
+                </div>
+              ),
+            )}
+          </div>
 
-          <section className="space-y-3 rounded-xl bg-muted p-4 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">
+          <div className="space-y-3 rounded-xl bg-muted p-4 text-sm">
+            <div className="flex justify-between gap-4">
+              <span>
                 المجموع الفرعي
               </span>
 
-              <span className="font-semibold">
+              <strong>
                 {formatPrice(
                   order.subtotal ??
                     0,
                 )}
-              </span>
+              </strong>
             </div>
 
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">
+            <div className="flex justify-between gap-4">
+              <span>
                 التوصيل
               </span>
 
-              <span className="font-semibold">
+              <strong>
                 {order.delivery_fee ===
                 0
                   ? "مجاني"
@@ -494,39 +453,39 @@ export default function OrderStatusDialog({
                       order.delivery_fee ??
                         0,
                     )}
-              </span>
+              </strong>
             </div>
 
-            <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-base">
+            <div className="flex justify-between gap-4 border-t border-border pt-3">
               <span className="font-bold">
                 الإجمالي
               </span>
 
-              <span className="font-bold">
+              <strong>
                 {formatPrice(
                   order.total ??
                     0,
                 )}
-              </span>
+              </strong>
             </div>
-          </section>
+          </div>
 
-          <section className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold">
                 حالة الطلب
               </h3>
 
               <StatusBadge
                 status={
-                  displayedStatus
+                  status
                 }
               />
             </div>
 
             <select
               value={
-                displayedStatus
+                status
               }
               disabled={
                 isUpdating
@@ -539,7 +498,7 @@ export default function OrderStatusDialog({
                     .value as OrderStatus,
                 );
               }}
-              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
             >
               {STATUS_OPTIONS.map(
                 (
@@ -560,25 +519,7 @@ export default function OrderStatusDialog({
                 ),
               )}
             </select>
-
-            {isUpdating ? (
-              <p className="text-xs text-muted-foreground">
-                جار تحديث حالة
-                الطلب...
-              </p>
-            ) : null}
-
-            {errorMessage ? (
-              <p
-                role="alert"
-                className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm font-medium text-destructive"
-              >
-                {
-                  errorMessage
-                }
-              </p>
-            ) : null}
-          </section>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

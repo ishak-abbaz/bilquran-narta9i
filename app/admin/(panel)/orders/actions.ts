@@ -3,7 +3,9 @@
 import {
   revalidatePath,
 } from "next/cache";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 import {
   requireAdmin,
@@ -33,21 +35,31 @@ export type UpdateOrderStatusResult =
       message: string;
     };
 
+export type DeleteOrderResult =
+  | {
+      success: true;
+      message: string;
+    }
+  | {
+      success: false;
+      message: string;
+    };
+
 const DATABASE_ERRORS = {
   ORDER_NOT_FOUND:
-    "الطلب غير موجود",
+    "الطلب غير موجود.",
 
   BAD_STATUS:
-    "حالة الطلب غير صالحة",
+    "حالة الطلب غير صالحة.",
 
   NO_STOCK:
-    "لا توجد كمية كافية لإعادة تفعيل الطلب",
+    "لا توجد كمية كافية لإعادة تفعيل الطلب.",
 
   PRODUCT_NOT_FOUND:
-    "تعذر إعادة تفعيل الطلب لأن الكتاب لم يعد موجوداً",
+    "تعذر إعادة تفعيل الطلب لأن الكتاب لم يعد موجوداً.",
 
   UNAUTHORIZED:
-    "غير مصرح لك بتعديل الطلب",
+    "غير مصرح لك بتنفيذ هذه العملية.",
 } as const;
 
 type DatabaseErrorCode =
@@ -55,10 +67,21 @@ type DatabaseErrorCode =
 
 function getDatabaseErrorCode(
   error: {
-    message?: string | null;
-    details?: string | null;
-    hint?: string | null;
-    code?: string | null;
+    message?:
+      | string
+      | null;
+
+    details?:
+      | string
+      | null;
+
+    hint?:
+      | string
+      | null;
+
+    code?:
+      | string
+      | null;
   },
 ): DatabaseErrorCode | null {
   const text = [
@@ -78,8 +101,41 @@ function getDatabaseErrorCode(
   return (
     codes.find(
       (code) =>
-        text.includes(code),
+        text.includes(
+          code,
+        ),
     ) ?? null
+  );
+}
+
+function revalidateOrderPages() {
+  revalidatePath(
+    "/admin",
+  );
+
+  revalidatePath(
+    "/admin/orders",
+  );
+
+  revalidatePath(
+    "/admin/products",
+  );
+
+  revalidatePath(
+    "/admin/sales",
+  );
+
+  revalidatePath(
+    "/",
+  );
+
+  revalidatePath(
+    "/shop",
+  );
+
+  revalidatePath(
+    "/product/[slug]",
+    "page",
   );
 }
 
@@ -105,8 +161,9 @@ export async function updateOrderStatus(
   ) {
     return {
       success: false,
+
       message:
-        "بيانات تحديث الطلب غير صالحة",
+        "بيانات تحديث الطلب غير صالحة.",
     };
   }
 
@@ -135,6 +192,7 @@ export async function updateOrderStatus(
     if (errorCode) {
       return {
         success: false,
+
         message:
           DATABASE_ERRORS[
             errorCode
@@ -149,24 +207,99 @@ export async function updateOrderStatus(
 
     return {
       success: false,
+
       message:
         "تعذر تحديث حالة الطلب. حاول مرة أخرى.",
     };
   }
 
-  revalidatePath(
-    "/admin",
-  );
-
-  revalidatePath(
-    "/admin/orders",
-  );
-
-  revalidatePath(
-    "/shop",
-  );
+  revalidateOrderPages();
 
   return {
     success: true,
+  };
+}
+
+export async function deleteOrder(
+  orderId: string,
+): Promise<DeleteOrderResult> {
+  await requireAdmin();
+
+  const parsedOrderId =
+    orderIdSchema.safeParse(
+      orderId,
+    );
+
+  if (
+    !parsedOrderId.success
+  ) {
+    return {
+      success: false,
+
+      message:
+        "معرّف الطلب غير صالح.",
+    };
+  }
+
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase.rpc(
+    "delete_order_atomic",
+    {
+      p_order_id:
+        parsedOrderId.data,
+    },
+  );
+
+  if (error) {
+    const errorCode =
+      getDatabaseErrorCode(
+        error,
+      );
+
+    if (errorCode) {
+      return {
+        success: false,
+
+        message:
+          DATABASE_ERRORS[
+            errorCode
+          ],
+      };
+    }
+
+    console.error(
+      "فشل حذف الطلب:",
+      error,
+    );
+
+    return {
+      success: false,
+
+      message:
+        "تعذر حذف الطلب. حاول مرة أخرى.",
+    };
+  }
+
+  revalidateOrderPages();
+
+  const orderNumber =
+    typeof data ===
+      "number"
+      ? data
+      : null;
+
+  return {
+    success: true,
+
+    message:
+      orderNumber !==
+      null
+        ? `تم حذف الطلب #${orderNumber} نهائياً.`
+        : "تم حذف الطلب نهائياً.",
   };
 }

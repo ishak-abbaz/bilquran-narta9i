@@ -4,15 +4,15 @@ import {
   zodResolver,
 } from "@hookform/resolvers/zod";
 import {
+  Check,
   Loader2,
-  Minus,
-  Plus,
+  MapPin,
+  PackageCheck,
+  Phone,
   ShoppingBag,
   Truck,
+  User,
 } from "lucide-react";
-import {
-  useState,
-} from "react";
 import {
   useForm,
   useWatch,
@@ -25,12 +25,12 @@ import {
   createOrderAction,
 } from "@/app/(store)/product/[slug]/actions";
 import {
+  formatPrice,
+} from "@/lib/utils";
+import {
   orderSchema,
   type OrderInput,
 } from "@/lib/validation/order";
-import {
-  formatPrice,
-} from "@/lib/utils";
 import type {
   Product,
 } from "@/types";
@@ -45,51 +45,51 @@ type DeliveryPrice = {
 type OrderFormProps = {
   book: Product;
   deliveryPrices: DeliveryPrice[];
-  freeDeliveryThreshold:
-    | number
-    | null;
 };
 
-type OrderFormFieldsProps =
-  OrderFormProps;
+const QUANTITY_OPTIONS = [
+  1,
+  2,
+  3,
+] as const;
 
 function fieldClassName(
   hasError: boolean,
 ) {
   return [
-    "h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition",
+    "h-12 w-full rounded-xl border bg-background px-4 text-sm outline-none transition",
     "placeholder:text-muted-foreground",
-    "focus:ring-2 focus:ring-ring/20",
+    "focus:ring-2 focus:ring-primary/15",
     hasError
       ? "border-destructive focus:border-destructive"
-      : "border-input focus:border-foreground/30",
+      : "border-input focus:border-primary",
   ].join(" ");
 }
 
-function OrderFormFields({
+function quantityLabel(
+  quantity: number,
+) {
+  if (quantity === 1) {
+    return "نسخة واحدة";
+  }
+
+  if (quantity === 2) {
+    return "نسختان";
+  }
+
+  return "3 نسخ";
+}
+
+export default function OrderForm({
   book,
   deliveryPrices,
-  freeDeliveryThreshold,
-}: OrderFormFieldsProps) {
-  /*
-   * Defensive boundary.
-   * A missing prop must never crash the storefront.
-   */
+}: OrderFormProps) {
   const safeDeliveryPrices =
     Array.isArray(
       deliveryPrices,
     )
       ? deliveryPrices
       : [];
-
-  const maxQuantity =
-    Math.max(
-      1,
-      Math.min(
-        book.stock,
-        10,
-      ),
-    );
 
   const firstWilayaCode =
     safeDeliveryPrices[
@@ -127,7 +127,7 @@ function OrderFormFields({
           firstWilayaCode,
 
         deliveryType:
-          "desk",
+          "home",
 
         address: "",
 
@@ -145,18 +145,22 @@ function OrderFormFields({
     useWatch({
       control,
       name: "wilayaCode",
-    }) ?? firstWilayaCode;
+    }) ??
+    firstWilayaCode;
 
   const deliveryType =
     useWatch({
       control,
       name: "deliveryType",
-    }) ?? "desk";
+    }) ??
+    "home";
 
   const selectedWilaya =
     safeDeliveryPrices.find(
-      (item) =>
-        item.wilaya_code ===
+      (
+        wilaya,
+      ) =>
+        wilaya.wilaya_code ===
         Number(
           wilayaCode,
         ),
@@ -164,11 +168,9 @@ function OrderFormFields({
 
   const subtotal =
     book.price *
-    Number(
-      quantity || 1,
-    );
+    quantity;
 
-  const baseDeliveryFee =
+  const deliveryFee =
     selectedWilaya
       ? deliveryType ===
         "home"
@@ -176,114 +178,25 @@ function OrderFormFields({
         : selectedWilaya.desk_price
       : 0;
 
-  const qualifiesForFreeDelivery =
-    freeDeliveryThreshold !==
-      null &&
-    freeDeliveryThreshold >
-      0 &&
-    subtotal >=
-      freeDeliveryThreshold;
-
-  const displayedDeliveryFee =
-    qualifiesForFreeDelivery
-      ? 0
-      : baseDeliveryFee;
-
-  const displayedTotal =
+  const total =
     subtotal +
-    displayedDeliveryFee;
-
-  function decreaseQuantity() {
-    const next =
-      Math.max(
-        1,
-        Number(
-          quantity,
-        ) - 1,
-      );
-
-    setValue(
-      "quantity",
-      next,
-      {
-        shouldDirty:
-          true,
-
-        shouldValidate:
-          true,
-      },
-    );
-  }
-
-  function increaseQuantity() {
-    const next =
-      Math.min(
-        maxQuantity,
-        Number(
-          quantity,
-        ) + 1,
-      );
-
-    setValue(
-      "quantity",
-      next,
-      {
-        shouldDirty:
-          true,
-
-        shouldValidate:
-          true,
-      },
-    );
-  }
+    deliveryFee;
 
   async function onSubmit(
     values: OrderInput,
   ) {
-    try {
-      const result =
-        await createOrderAction(
-          values,
-        );
-
-      /*
-       * Successful createOrderAction redirects to
-       * /order-success, so only failures normally
-       * return here.
-       */
-      if (
-        result &&
-        result.success ===
-          false
-      ) {
-        toast.error(
-          result.message,
-        );
-      }
-    } catch (
-      error
-    ) {
-      /*
-       * Next.js redirect exceptions are handled by
-       * the framework. Unexpected failures are logged.
-       */
-      if (
-        error instanceof
-          Error &&
-        error.message.includes(
-          "NEXT_REDIRECT",
-        )
-      ) {
-        throw error;
-      }
-
-      console.error(
-        "فشل إرسال الطلب:",
-        error,
+    const result =
+      await createOrderAction(
+        values,
       );
 
+    if (
+      result &&
+      result.success ===
+        false
+    ) {
       toast.error(
-        "تعذر إرسال الطلب. حاول مرة أخرى.",
+        result.message,
       );
     }
   }
@@ -295,530 +208,569 @@ function OrderFormFields({
     return (
       <div
         role="alert"
-        className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5 text-sm leading-7 text-destructive"
+        className="rounded-2xl border border-destructive/20 bg-destructive/5 p-5 text-sm leading-7 text-destructive"
       >
-        أسعار التوصيل غير متوفرة
-        حالياً. يرجى المحاولة لاحقاً.
+        التوصيل غير متوفر حالياً.
+        يرجى المحاولة لاحقاً.
       </div>
     );
   }
 
   return (
-    <form
-      onSubmit={(
-        event,
-      ) => {
-        void handleSubmit(
-          onSubmit,
-        )(event);
-      }}
-      className="space-y-5"
-    >
-      <input
-        type="hidden"
-        {...register(
-          "productId",
-        )}
-      />
-
-      <div className="rounded-xl bg-muted/60 p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold">
-              الكمية
-            </p>
-
-            <p className="mt-1 text-xs text-muted-foreground">
-              المتوفر:{" "}
-              {
-                book.stock
-              }
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={
-                decreaseQuantity
-              }
-              disabled={
-                Number(
-                  quantity,
-                ) <= 1
-              }
-              className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
-              aria-label="إنقاص الكمية"
-            >
-              <Minus
-                className="size-4"
-                aria-hidden="true"
-              />
-            </button>
-
-            <input
-              type="number"
-              min={1}
-              max={
-                maxQuantity
-              }
-              inputMode="numeric"
-              className="h-9 w-14 rounded-lg border border-input bg-background text-center text-sm font-semibold outline-none"
-              {...register(
-                "quantity",
-                {
-                  valueAsNumber:
-                    true,
-                },
-              )}
-            />
-
-            <button
-              type="button"
-              onClick={
-                increaseQuantity
-              }
-              disabled={
-                Number(
-                  quantity,
-                ) >=
-                maxQuantity
-              }
-              className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-background transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
-              aria-label="زيادة الكمية"
-            >
-              <Plus
-                className="size-4"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
-        </div>
-
-        {errors.quantity ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors.quantity
-                .message
-            }
-          </p>
-        ) : null}
-      </div>
-
-      <div>
-        <label
-          htmlFor="order-full-name"
-          className="mb-2 block text-sm font-semibold"
-        >
-          الاسم الكامل
-        </label>
-
+    <section className="overflow-hidden rounded-3xl border border-border bg-background shadow-sm">
+      <form
+        onSubmit={(
+          event,
+        ) => {
+          void handleSubmit(
+            onSubmit,
+          )(event);
+        }}
+      >
         <input
-          id="order-full-name"
-          type="text"
-          autoComplete="name"
-          placeholder="الاسم واللقب"
-          className={
-            fieldClassName(
-              Boolean(
-                errors.fullName,
-              ),
-            )
-          }
+          type="hidden"
           {...register(
-            "fullName",
+            "productId",
           )}
         />
 
-        {errors.fullName ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors.fullName
-                .message
-            }
-          </p>
-        ) : null}
-      </div>
+        <div className="border-b border-border p-5 sm:p-7">
+          <div className="mb-5">
+            <p className="text-sm font-semibold text-primary">
+              اختر الكمية
+            </p>
 
-      <div>
-        <label
-          htmlFor="order-phone"
-          className="mb-2 block text-sm font-semibold"
-        >
-          رقم الهاتف
-        </label>
+            <h2 className="mt-1 text-2xl font-bold">
+              اختر عدد النسخ
+            </h2>
+          </div>
 
-        <input
-          id="order-phone"
-          type="tel"
-          dir="ltr"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder="05XXXXXXXX"
-          className={`${fieldClassName(
-            Boolean(
-              errors.phone,
-            ),
-          )} text-end`}
-          {...register(
-            "phone",
-          )}
-        />
+          <div className="grid gap-3">
+            {QUANTITY_OPTIONS.map(
+              (
+                option,
+              ) => {
+                const selected =
+                  quantity ===
+                  option;
 
-        {errors.phone ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors.phone
-                .message
-            }
-          </p>
-        ) : null}
-      </div>
+                const available =
+                  book.stock >=
+                  option;
 
-      <div>
-        <label
-          htmlFor="order-wilaya"
-          className="mb-2 block text-sm font-semibold"
-        >
-          الولاية
-        </label>
+                return (
+                  <button
+                    key={
+                      option
+                    }
+                    type="button"
+                    disabled={
+                      !available
+                    }
+                    onClick={() =>
+                      setValue(
+                        "quantity",
+                        option,
+                        {
+                          shouldDirty:
+                            true,
 
-        <select
-          id="order-wilaya"
-          className={
-            fieldClassName(
-              Boolean(
-                errors.wilayaCode,
-              ),
-            )
-          }
-          {...register(
-            "wilayaCode",
-            {
-              valueAsNumber:
-                true,
-            },
-          )}
-        >
-          {safeDeliveryPrices.map(
-            (
-              wilaya,
-            ) => (
-              <option
-                key={
-                  wilaya.wilaya_code
-                }
-                value={
-                  wilaya.wilaya_code
-                }
-              >
-                {
-                  wilaya.wilaya_name
-                }
-              </option>
-            ),
-          )}
-        </select>
+                          shouldValidate:
+                            true,
+                        },
+                      )
+                    }
+                    className={`relative flex min-h-24 w-full items-center justify-between gap-5 rounded-2xl border-2 px-5 py-4 text-start transition ${
+                      selected
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border bg-background hover:border-primary/40 hover:bg-muted/30"
+                    } ${
+                      !available
+                        ? "cursor-not-allowed opacity-40"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <span
+                        className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 ${
+                          selected
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-muted-foreground/30 bg-background"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {selected ? (
+                          <Check className="size-4" />
+                        ) : null}
+                      </span>
 
-        {errors.wilayaCode ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors
-                .wilayaCode
-                .message
-            }
-          </p>
-        ) : null}
-      </div>
+                      <div>
+                        <p className="text-base font-bold sm:text-lg">
+                          {quantityLabel(
+                            option,
+                          )}
+                        </p>
 
-      <fieldset>
-        <legend className="mb-3 text-sm font-semibold">
-          طريقة التوصيل
-        </legend>
+                        {!available ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            الكمية غير
+                            متوفرة
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition-colors has-checked:border-primary has-checked:bg-primary/5">
-            <input
-              type="radio"
-              value="desk"
-              className="mt-1 accent-primary"
-              {...register(
-                "deliveryType",
-              )}
-            />
+                    <div className="text-end">
+                      <p className="text-lg font-bold tabular-nums sm:text-xl">
+                        {formatPrice(
+                          book.price *
+                            option,
+                        )}
+                      </p>
 
-            <span>
-              <span className="block text-sm font-semibold">
-                مكتب التوصيل
-              </span>
-
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {selectedWilaya
-                  ? formatPrice(
-                      selectedWilaya.desk_price,
-                    )
-                  : ""}
-              </span>
-            </span>
-          </label>
-
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4 transition-colors has-checked:border-primary has-checked:bg-primary/5">
-            <input
-              type="radio"
-              value="home"
-              className="mt-1 accent-primary"
-              {...register(
-                "deliveryType",
-              )}
-            />
-
-            <span>
-              <span className="block text-sm font-semibold">
-                التوصيل إلى المنزل
-              </span>
-
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {selectedWilaya
-                  ? formatPrice(
-                      selectedWilaya.home_price,
-                    )
-                  : ""}
-              </span>
-            </span>
-          </label>
-        </div>
-
-        {errors.deliveryType ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors
-                .deliveryType
-                .message
-            }
-          </p>
-        ) : null}
-      </fieldset>
-
-      {deliveryType ===
-      "home" ? (
-        <div>
-          <label
-            htmlFor="order-address"
-            className="mb-2 block text-sm font-semibold"
-          >
-            عنوان المنزل
-          </label>
-
-          <input
-            id="order-address"
-            type="text"
-            autoComplete="street-address"
-            placeholder="البلدية، الحي، العنوان..."
-            className={
-              fieldClassName(
-                Boolean(
-                  errors.address,
-                ),
-              )
-            }
-            {...register(
-              "address",
+                      {option >
+                      1 ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatPrice(
+                            book.price,
+                          )}{" "}
+                          × {option}
+                        </p>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              },
             )}
-          />
+          </div>
 
-          {errors.address ? (
-            <p className="mt-2 text-xs text-destructive">
+          {errors.quantity ? (
+            <p className="mt-3 text-xs font-medium text-destructive">
               {
-                errors.address
+                errors.quantity
                   .message
               }
             </p>
           ) : null}
         </div>
-      ) : null}
 
-      <div>
-        <label
-          htmlFor="order-notes"
-          className="mb-2 block text-sm font-semibold"
-        >
-          ملاحظات
-          <span className="font-normal text-muted-foreground">
-            {" "}
-            (اختياري)
-          </span>
-        </label>
+        <div className="p-5 sm:p-7">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold">
+              املأ استمارة الطلب
+            </h2>
 
-        <textarea
-          id="order-notes"
-          rows={3}
-          placeholder="أي معلومات إضافية للطلب..."
-          className="w-full resize-y rounded-xl border border-input bg-background px-3 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-2 focus:ring-ring/20"
-          {...register(
-            "notes",
-          )}
-        />
+            <p className="mt-2 text-sm text-muted-foreground">
+              الدفع عند الاستلام
+            </p>
+          </div>
 
-        {errors.notes ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors.notes
-                .message
-            }
-          </p>
-        ) : null}
-      </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="order-full-name"
+                className="mb-2 block text-sm font-semibold"
+              >
+                الاسم واللقب
+              </label>
 
-      <div className="space-y-3 rounded-2xl border border-border bg-muted/30 p-4">
-        <div className="flex items-center gap-2 font-semibold">
-          <ShoppingBag
-            className="size-4"
-            aria-hidden="true"
-          />
+              <div className="relative">
+                <User
+                  className="pointer-events-none absolute start-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
 
-          ملخص الطلب
-        </div>
+                <input
+                  id="order-full-name"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="الاسم واللقب"
+                  className={`${fieldClassName(
+                    Boolean(
+                      errors.fullName,
+                    ),
+                  )} ps-12`}
+                  {...register(
+                    "fullName",
+                  )}
+                />
+              </div>
 
-        <div className="flex items-center justify-between gap-4 text-sm">
-          <span className="text-muted-foreground">
-            الكتاب ×{" "}
-            {
-              quantity
-            }
-          </span>
+              {errors.fullName ? (
+                <p className="mt-2 text-xs font-medium text-destructive">
+                  {
+                    errors
+                      .fullName
+                      .message
+                  }
+                </p>
+              ) : null}
+            </div>
 
-          <span className="font-medium">
-            {formatPrice(
-              subtotal,
-            )}
-          </span>
-        </div>
+            <div>
+              <label
+                htmlFor="order-phone"
+                className="mb-2 block text-sm font-semibold"
+              >
+                رقم الهاتف
+              </label>
 
-        <div className="flex items-center justify-between gap-4 text-sm">
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
-            <Truck
-              className="size-4"
-              aria-hidden="true"
-            />
+              <div
+                dir="ltr"
+                className="relative"
+              >
+                <Phone
+                  className="pointer-events-none absolute end-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
 
-            التوصيل
-          </span>
+                <input
+                  id="order-phone"
+                  type="tel"
+                  dir="ltr"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="05XXXXXXXX"
+                  className={`${fieldClassName(
+                    Boolean(
+                      errors.phone,
+                    ),
+                  )} pe-12 text-end`}
+                  {...register(
+                    "phone",
+                  )}
+                />
+              </div>
 
-          <span className="font-medium">
-            {displayedDeliveryFee ===
-            0
-              ? "مجاني"
-              : formatPrice(
-                  displayedDeliveryFee,
+              {errors.phone ? (
+                <p className="mt-2 text-xs font-medium text-destructive">
+                  {
+                    errors.phone
+                      .message
+                  }
+                </p>
+              ) : null}
+            </div>
+
+            <div className="sm:col-span-2">
+              <label
+                htmlFor="order-wilaya"
+                className="mb-2 block text-sm font-semibold"
+              >
+                الولاية
+              </label>
+
+              <div className="relative">
+                <MapPin
+                  className="pointer-events-none absolute start-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+
+                <select
+                  id="order-wilaya"
+                  className={`${fieldClassName(
+                    Boolean(
+                      errors.wilayaCode,
+                    ),
+                  )} ps-12`}
+                  {...register(
+                    "wilayaCode",
+                    {
+                      valueAsNumber:
+                        true,
+                    },
+                  )}
+                >
+                  {safeDeliveryPrices.map(
+                    (
+                      wilaya,
+                    ) => (
+                      <option
+                        key={
+                          wilaya.wilaya_code
+                        }
+                        value={
+                          wilaya.wilaya_code
+                        }
+                      >
+                        {
+                          wilaya.wilaya_name
+                        }
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
+
+              {errors.wilayaCode ? (
+                <p className="mt-2 text-xs font-medium text-destructive">
+                  {
+                    errors
+                      .wilayaCode
+                      .message
+                  }
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <fieldset className="mt-7">
+            <legend className="mb-4 text-lg font-bold">
+              مكان التوصيل
+            </legend>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label
+                className={`flex cursor-pointer items-center justify-between gap-4 rounded-2xl border-2 p-4 transition ${
+                  deliveryType ===
+                  "home"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/30"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    value="home"
+                    className="size-5 accent-primary"
+                    {...register(
+                      "deliveryType",
+                    )}
+                  />
+
+                  <div>
+                    <p className="font-bold">
+                      للمنزل
+                    </p>
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      التوصيل إلى
+                      عنوانك
+                    </p>
+                  </div>
+                </div>
+
+                <p className="font-bold">
+                  {selectedWilaya
+                    ? formatPrice(
+                        selectedWilaya.home_price,
+                      )
+                    : ""}
+                </p>
+              </label>
+
+              <label
+                className={`flex cursor-pointer items-center justify-between gap-4 rounded-2xl border-2 p-4 transition ${
+                  deliveryType ===
+                  "desk"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/30"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    value="desk"
+                    className="size-5 accent-primary"
+                    {...register(
+                      "deliveryType",
+                    )}
+                  />
+
+                  <div>
+                    <p className="font-bold">
+                      لمكتب التوصيل
+                    </p>
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      الاستلام من
+                      المكتب
+                    </p>
+                  </div>
+                </div>
+
+                <p className="font-bold">
+                  {selectedWilaya
+                    ? formatPrice(
+                        selectedWilaya.desk_price,
+                      )
+                    : ""}
+                </p>
+              </label>
+            </div>
+
+            {errors.deliveryType ? (
+              <p className="mt-2 text-xs font-medium text-destructive">
+                {
+                  errors
+                    .deliveryType
+                    .message
+                }
+              </p>
+            ) : null}
+          </fieldset>
+
+          {deliveryType ===
+          "home" ? (
+            <div className="mt-5">
+              <label
+                htmlFor="order-address"
+                className="mb-2 block text-sm font-semibold"
+              >
+                العنوان
+              </label>
+
+              <input
+                id="order-address"
+                type="text"
+                autoComplete="street-address"
+                placeholder="البلدية، الحي، الشارع..."
+                className={
+                  fieldClassName(
+                    Boolean(
+                      errors.address,
+                    ),
+                  )
+                }
+                {...register(
+                  "address",
                 )}
-          </span>
-        </div>
+              />
 
-        {freeDeliveryThreshold !==
-          null &&
-        freeDeliveryThreshold >
-          0 ? (
-          <p className="text-xs leading-6 text-muted-foreground">
-            التوصيل مجاني للطلبات
-            ابتداءً من{" "}
-            {formatPrice(
-              freeDeliveryThreshold,
-            )}
-            .
-          </p>
-        ) : null}
+              {errors.address ? (
+                <p className="mt-2 text-xs font-medium text-destructive">
+                  {
+                    errors.address
+                      .message
+                  }
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
-        <div className="flex items-center justify-between gap-4 border-t border-border pt-3">
-          <span className="font-bold">
-            الإجمالي المتوقع
-          </span>
+          <div className="mt-5">
+            <label
+              htmlFor="order-notes"
+              className="mb-2 block text-sm font-semibold"
+            >
+              ملاحظات
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                (اختياري)
+              </span>
+            </label>
 
-          <span className="text-lg font-bold text-primary">
-            {formatPrice(
-              displayedTotal,
-            )}
-          </span>
-        </div>
-
-        <p className="text-xs leading-6 text-muted-foreground">
-          السعر النهائي ورسوم التوصيل
-          يتم التحقق منهما في الخادم
-          عند إنشاء الطلب.
-        </p>
-      </div>
-
-      <button
-        type="submit"
-        disabled={
-          isSubmitting ||
-          book.stock <= 0
-        }
-        className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
-      >
-        {isSubmitting ? (
-          <>
-            <Loader2
-              className="size-4 animate-spin"
-              aria-hidden="true"
+            <textarea
+              id="order-notes"
+              rows={3}
+              placeholder="أي معلومات إضافية للطلب..."
+              className="w-full resize-y rounded-xl border border-input bg-background px-4 py-3 text-sm leading-7 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+              {...register(
+                "notes",
+              )}
             />
 
-            جار إرسال الطلب...
-          </>
-        ) : (
-          <>
-            <ShoppingBag
-              className="size-4"
-              aria-hidden="true"
-            />
+            {errors.notes ? (
+              <p className="mt-2 text-xs font-medium text-destructive">
+                {
+                  errors.notes
+                    .message
+                }
+              </p>
+            ) : null}
+          </div>
 
-            اطلب الآن
-          </>
-        )}
-      </button>
+          <div className="mt-7 border-t border-border pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Truck
+                    className="size-4"
+                    aria-hidden="true"
+                  />
 
-      <p className="text-center text-xs text-muted-foreground">
-        الدفع عند الاستلام
-      </p>
-    </form>
-  );
-}
+                  سعر التوصيل
+                </span>
 
-export default function OrderForm({
-  book,
-  deliveryPrices,
-  freeDeliveryThreshold,
-}: OrderFormProps) {
-  /*
-   * Keep these props explicit here.
-   * The previous implementation dropped
-   * deliveryPrices before OrderFormFields,
-   * which caused deliveryPrices.find()
-   * to crash at runtime.
-   */
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold">
-          اطلب الكتاب
-        </h2>
+                <span className="font-semibold">
+                  {selectedWilaya
+                    ? formatPrice(
+                        deliveryFee,
+                      )
+                    : "اختر الولاية"}
+                </span>
+              </div>
 
-        <p className="mt-2 text-sm leading-7 text-muted-foreground">
-          أدخل معلوماتك واختر طريقة
-          التوصيل. الدفع عند الاستلام.
-        </p>
-      </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <PackageCheck
+                    className="size-4"
+                    aria-hidden="true"
+                  />
 
-      <OrderFormFields
-        book={
-          book
-        }
-        deliveryPrices={
-          deliveryPrices
-        }
-        freeDeliveryThreshold={
-          freeDeliveryThreshold
-        }
-      />
-    </div>
+                  سعر الكتب
+                </span>
+
+                <span className="font-semibold">
+                  {formatPrice(
+                    subtotal,
+                  )}
+                </span>
+              </div>
+
+              <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
+                <span>
+                  <span className="block text-sm text-muted-foreground">
+                    التكلفة
+                    الإجمالية
+                  </span>
+
+                  <span className="mt-1 block text-xs text-muted-foreground">
+                    الدفع عند
+                    الاستلام
+                  </span>
+                </span>
+
+                <span className="text-2xl font-extrabold text-primary tabular-nums">
+                  {formatPrice(
+                    total,
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={
+              isSubmitting ||
+              book.stock <=
+                0
+            }
+            className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2
+                  className="size-5 animate-spin"
+                  aria-hidden="true"
+                />
+
+                جار إرسال الطلب...
+              </>
+            ) : (
+              <>
+                <ShoppingBag
+                  className="size-5"
+                  aria-hidden="true"
+                />
+
+                اطلب الآن
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }

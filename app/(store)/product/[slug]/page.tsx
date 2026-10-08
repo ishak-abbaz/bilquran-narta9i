@@ -20,9 +20,6 @@ import {
 import {
   buildBookStructuredData,
 } from "@/lib/seo/products";
-import {
-  getStoreSettings,
-} from "@/lib/store-settings";
 
 type ProductPageProps = {
   params: Promise<{
@@ -97,17 +94,15 @@ export default async function ProductPage({
   const [
     relatedProducts,
     deliveryPrices,
-    settings,
-  ] = await Promise.all([
-    getRelatedProducts(
-      product,
-      4,
-    ),
+  ] =
+    await Promise.all([
+      getRelatedProducts(
+        product,
+        4,
+      ),
 
-    getDeliveryPrices(),
-
-    getStoreSettings(),
-  ]);
+      getDeliveryPrices(),
+    ]);
 
   const structuredData =
     buildBookStructuredData({
@@ -163,9 +158,6 @@ export default async function ProductPage({
         }
         deliveryPrices={
           deliveryPrices
-        }
-        freeDeliveryThreshold={
-          settings.free_delivery_threshold
         }
       />
 

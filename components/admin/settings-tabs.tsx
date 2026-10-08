@@ -2,30 +2,35 @@
 
 import {
   MapPin,
+  Plus,
   Save,
-  Settings,
+  Trash2,
   Truck,
 } from "lucide-react";
 import {
-  FormEvent,
   useState,
   useTransition,
 } from "react";
-import { toast } from "sonner";
+import {
+  toast,
+} from "sonner";
 
 import {
-  saveDeliveryPrice,
-  saveStoreSettings,
+  createDeliveryWilaya,
+  deleteDeliveryWilaya,
+  updateDeliveryWilaya,
 } from "@/app/admin/(panel)/settings/actions";
-
-type StoreSettingsData = {
-  store_name: string;
-  phone: string;
-  email: string;
-  instagram: string;
-  address: string;
-  free_delivery_threshold: number | null;
-};
+import {
+  Button,
+} from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export type DeliveryPriceRow = {
   wilaya_code: number;
@@ -34,154 +39,244 @@ export type DeliveryPriceRow = {
   desk_price: number;
 };
 
+type EditableDeliveryRow =
+  DeliveryPriceRow & {
+    original_wilaya_code:
+      number;
+  };
+
 type SettingsTabsProps = {
-  initialSettings: StoreSettingsData;
-  initialDeliveryPrices: DeliveryPriceRow[];
+  initialDeliveryPrices:
+    DeliveryPriceRow[];
 };
 
-type TabName = "store" | "delivery";
+type NewWilayaForm = {
+  wilaya_code: string;
+  wilaya_name: string;
+  home_price: string;
+  desk_price: string;
+};
+
+const EMPTY_NEW_WILAYA:
+  NewWilayaForm = {
+  wilaya_code: "",
+  wilaya_name: "",
+  home_price: "",
+  desk_price: "",
+};
 
 function inputClassName() {
-  return "h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus:border-foreground/30 focus:ring-2 focus:ring-ring/20";
+  return "h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15";
+}
+
+function normalizeInteger(
+  value: string,
+) {
+  if (
+    value.trim() ===
+    ""
+  ) {
+    return 0;
+  }
+
+  const number =
+    Number(value);
+
+  if (
+    !Number.isFinite(
+      number,
+    )
+  ) {
+    return 0;
+  }
+
+  return Math.trunc(
+    number,
+  );
 }
 
 export function SettingsTabs({
-  initialSettings,
   initialDeliveryPrices,
 }: SettingsTabsProps) {
-  const [activeTab, setActiveTab] =
-    useState<TabName>("store");
-
   const [
-    storeSettings,
-    setStoreSettings,
-  ] = useState({
-    store_name:
-      initialSettings.store_name,
-    phone: initialSettings.phone,
-    email: initialSettings.email,
-    instagram:
-      initialSettings.instagram,
-    address: initialSettings.address,
-    free_delivery_threshold:
-      initialSettings.free_delivery_threshold ===
-      null
-        ? ""
-        : String(
-            initialSettings.free_delivery_threshold,
-          ),
-  });
+    rows,
+    setRows,
+  ] = useState<
+    EditableDeliveryRow[]
+  >(
+    initialDeliveryPrices.map(
+      (
+        row,
+      ) => ({
+        ...row,
 
-  const [
-    deliveryPrices,
-    setDeliveryPrices,
-  ] = useState<DeliveryPriceRow[]>(
-    initialDeliveryPrices,
+        original_wilaya_code:
+          row.wilaya_code,
+      }),
+    ),
   );
 
   const [
-    isStorePending,
-    startStoreTransition,
-  ] = useTransition();
+    newWilaya,
+    setNewWilaya,
+  ] =
+    useState<NewWilayaForm>(
+      EMPTY_NEW_WILAYA,
+    );
 
   const [
-    isDeliveryPending,
-    startDeliveryTransition,
-  ] = useTransition();
+    savingCode,
+    setSavingCode,
+  ] = useState<
+    number | null
+  >(null);
 
   const [
-    savingWilayaCode,
-    setSavingWilayaCode,
-  ] = useState<number | null>(null);
+    isAdding,
+    setIsAdding,
+  ] = useState(false);
 
-  function handleStoreSubmit(
-    event: FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
+  const [
+    deleteTarget,
+    setDeleteTarget,
+  ] = useState<
+    EditableDeliveryRow | null
+  >(null);
 
-    startStoreTransition(async () => {
-      const threshold =
-        storeSettings.free_delivery_threshold.trim() ===
-        ""
-          ? null
-          : Number(
-              storeSettings.free_delivery_threshold,
-            );
+  const [
+    isPending,
+    startTransition,
+  ] = useTransition();
 
-      const result =
-        await saveStoreSettings({
-          store_name:
-            storeSettings.store_name,
-          phone: storeSettings.phone,
-          email: storeSettings.email,
-          instagram:
-            storeSettings.instagram,
-          address:
-            storeSettings.address,
-          free_delivery_threshold:
-            threshold,
-        });
-
-      if (!result.success) {
-        toast.error(result.message);
-        return;
-      }
-
-      toast.success(result.message);
-    });
-  }
-
-  function updateDeliveryPrice(
-    wilayaCode: number,
+  function updateRow(
+    originalCode: number,
     field:
+      | "wilaya_code"
+      | "wilaya_name"
       | "home_price"
       | "desk_price",
-    value: string,
+    value:
+      string,
   ) {
-    const numericValue =
-      value === ""
-        ? 0
-        : Math.max(
-            0,
-            Number(value) || 0,
-          );
+    setRows(
+      (
+        current,
+      ) =>
+        current.map(
+          (
+            row,
+          ) => {
+            if (
+              row.original_wilaya_code !==
+              originalCode
+            ) {
+              return row;
+            }
 
-    setDeliveryPrices(
-      (current) =>
-        current.map((row) =>
-          row.wilaya_code ===
-          wilayaCode
-            ? {
+            if (
+              field ===
+              "wilaya_name"
+            ) {
+              return {
                 ...row,
-                [field]:
-                  numericValue,
-              }
-            : row,
+
+                wilaya_name:
+                  value,
+              };
+            }
+
+            return {
+              ...row,
+
+              [field]:
+                normalizeInteger(
+                  value,
+                ),
+            };
+          },
         ),
     );
   }
 
-  function handleSaveWilaya(
-    row: DeliveryPriceRow,
-  ) {
-    setSavingWilayaCode(
-      row.wilaya_code,
+  function handleAdd() {
+    const wilayaCode =
+      normalizeInteger(
+        newWilaya.wilaya_code,
+      );
+
+    const wilayaName =
+      newWilaya.wilaya_name.trim();
+
+    const homePrice =
+      normalizeInteger(
+        newWilaya.home_price,
+      );
+
+    const deskPrice =
+      normalizeInteger(
+        newWilaya.desk_price,
+      );
+
+    if (
+      wilayaCode <=
+      0
+    ) {
+      toast.error(
+        "أدخل رمز ولاية صالحاً.",
+      );
+
+      return;
+    }
+
+    if (
+      wilayaName.length ===
+      0
+    ) {
+      toast.error(
+        "أدخل اسم الولاية.",
+      );
+
+      return;
+    }
+
+    if (
+      homePrice <
+        0 ||
+      deskPrice <
+        0
+    ) {
+      toast.error(
+        "أسعار التوصيل لا يمكن أن تكون سالبة.",
+      );
+
+      return;
+    }
+
+    setIsAdding(
+      true,
     );
 
-    startDeliveryTransition(
+    startTransition(
       async () => {
         try {
           const result =
-            await saveDeliveryPrice({
+            await createDeliveryWilaya({
               wilaya_code:
-                row.wilaya_code,
+                wilayaCode,
+
+              wilaya_name:
+                wilayaName,
+
               home_price:
-                row.home_price,
+                homePrice,
+
               desk_price:
-                row.desk_price,
+                deskPrice,
             });
 
-          if (!result.success) {
+          if (
+            !result.success
+          ) {
             toast.error(
               result.message,
             );
@@ -189,11 +284,127 @@ export function SettingsTabs({
             return;
           }
 
+          setRows(
+            (
+              current,
+            ) =>
+              [
+                ...current,
+                {
+                  wilaya_code:
+                    wilayaCode,
+
+                  wilaya_name:
+                    wilayaName,
+
+                  home_price:
+                    homePrice,
+
+                  desk_price:
+                    deskPrice,
+
+                  original_wilaya_code:
+                    wilayaCode,
+                },
+              ].sort(
+                (
+                  first,
+                  second,
+                ) =>
+                  first.wilaya_code -
+                  second.wilaya_code,
+              ),
+          );
+
+          setNewWilaya(
+            EMPTY_NEW_WILAYA,
+          );
+
           toast.success(
             result.message,
           );
         } finally {
-          setSavingWilayaCode(
+          setIsAdding(
+            false,
+          );
+        }
+      },
+    );
+  }
+
+  function handleSave(
+    row:
+      EditableDeliveryRow,
+  ) {
+    setSavingCode(
+      row.original_wilaya_code,
+    );
+
+    startTransition(
+      async () => {
+        try {
+          const result =
+            await updateDeliveryWilaya(
+              row.original_wilaya_code,
+              {
+                wilaya_code:
+                  row.wilaya_code,
+
+                wilaya_name:
+                  row.wilaya_name,
+
+                home_price:
+                  row.home_price,
+
+                desk_price:
+                  row.desk_price,
+              },
+            );
+
+          if (
+            !result.success
+          ) {
+            toast.error(
+              result.message,
+            );
+
+            return;
+          }
+
+          setRows(
+            (
+              current,
+            ) =>
+              current
+                .map(
+                  (
+                    item,
+                  ) =>
+                    item.original_wilaya_code ===
+                    row.original_wilaya_code
+                      ? {
+                          ...row,
+
+                          original_wilaya_code:
+                            row.wilaya_code,
+                        }
+                      : item,
+                )
+                .sort(
+                  (
+                    first,
+                    second,
+                  ) =>
+                    first.wilaya_code -
+                    second.wilaya_code,
+                ),
+          );
+
+          toast.success(
+            result.message,
+          );
+        } finally {
+          setSavingCode(
             null,
           );
         }
@@ -201,288 +412,263 @@ export function SettingsTabs({
     );
   }
 
+  function handleDelete() {
+    if (
+      !deleteTarget
+    ) {
+      return;
+    }
+
+    const target =
+      deleteTarget;
+
+    startTransition(
+      async () => {
+        const result =
+          await deleteDeliveryWilaya(
+            target.original_wilaya_code,
+          );
+
+        if (
+          !result.success
+        ) {
+          toast.error(
+            result.message,
+          );
+
+          return;
+        }
+
+        setRows(
+          (
+            current,
+          ) =>
+            current.filter(
+              (
+                row,
+              ) =>
+                row.original_wilaya_code !==
+                target.original_wilaya_code,
+            ),
+        );
+
+        setDeleteTarget(
+          null,
+        );
+
+        toast.success(
+          result.message,
+        );
+      },
+    );
+  }
+
   return (
-    <div>
-      <div className="mb-6 inline-flex rounded-xl border border-border bg-muted/40 p-1">
-        <button
-          type="button"
-          onClick={() =>
-            setActiveTab("store")
-          }
-          className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
-            activeTab === "store"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Settings
-            className="size-4"
-            aria-hidden="true"
-          />
-          معلومات المتجر
-        </button>
-
-        <button
-          type="button"
-          onClick={() =>
-            setActiveTab(
-              "delivery",
-            )
-          }
-          className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors ${
-            activeTab ===
-            "delivery"
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Truck
-            className="size-4"
-            aria-hidden="true"
-          />
-          أسعار التوصيل
-        </button>
-      </div>
-
-      {activeTab === "store" ? (
-        <form
-          onSubmit={
-            handleStoreSubmit
-          }
-          className="rounded-2xl border border-border bg-white p-5 shadow-sm dark:bg-card sm:p-6"
-        >
-          <div className="mb-6">
-            <h2 className="text-lg font-bold">
-              معلومات المتجر
-            </h2>
-
-            <p className="mt-1 text-sm leading-7 text-muted-foreground">
-              هذه المعلومات تظهر في
-              واجهة المتجر وصفحة
-              التواصل.
-            </p>
-          </div>
-
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div>
-              <label
-                htmlFor="store-name"
-                className="mb-2 block text-sm font-semibold"
-              >
-                اسم المتجر
-              </label>
-
-              <input
-                id="store-name"
-                value={
-                  storeSettings.store_name
-                }
-                onChange={(
-                  event,
-                ) =>
-                  setStoreSettings(
-                    (current) => ({
-                      ...current,
-                      store_name:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className={inputClassName()}
+    <>
+      <div className="space-y-6">
+        <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
+          <div className="mb-6 flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Plus
+                className="size-5"
+                aria-hidden="true"
               />
             </div>
 
             <div>
-              <label
-                htmlFor="store-phone"
-                className="mb-2 block text-sm font-semibold"
-              >
-                رقم الهاتف
-              </label>
+              <h2 className="text-lg font-bold">
+                إضافة ولاية
+              </h2>
 
-              <input
-                id="store-phone"
-                type="tel"
-                dir="ltr"
-                value={
-                  storeSettings.phone
-                }
-                onChange={(
-                  event,
-                ) =>
-                  setStoreSettings(
-                    (current) => ({
-                      ...current,
-                      phone:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className={`${inputClassName()} text-end`}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="store-email"
-                className="mb-2 block text-sm font-semibold"
-              >
-                البريد الإلكتروني
-              </label>
-
-              <input
-                id="store-email"
-                type="email"
-                dir="ltr"
-                value={
-                  storeSettings.email
-                }
-                onChange={(
-                  event,
-                ) =>
-                  setStoreSettings(
-                    (current) => ({
-                      ...current,
-                      email:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className={`${inputClassName()} text-end`}
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="store-instagram"
-                className="mb-2 block text-sm font-semibold"
-              >
-                إنستغرام
-              </label>
-
-              <input
-                id="store-instagram"
-                dir="ltr"
-                placeholder="@username"
-                value={
-                  storeSettings.instagram
-                }
-                onChange={(
-                  event,
-                ) =>
-                  setStoreSettings(
-                    (current) => ({
-                      ...current,
-                      instagram:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className={`${inputClassName()} text-end`}
-              />
-            </div>
-
-            <div className="lg:col-span-2">
-              <label
-                htmlFor="store-address"
-                className="mb-2 block text-sm font-semibold"
-              >
-                العنوان
-              </label>
-
-              <textarea
-                id="store-address"
-                rows={4}
-                value={
-                  storeSettings.address
-                }
-                onChange={(
-                  event,
-                ) =>
-                  setStoreSettings(
-                    (current) => ({
-                      ...current,
-                      address:
-                        event.target
-                          .value,
-                    }),
-                  )
-                }
-                className="w-full resize-y rounded-xl border border-input bg-background px-3 py-3 text-sm leading-7 outline-none transition focus:border-foreground/30 focus:ring-2 focus:ring-ring/20"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="free-delivery-threshold"
-                className="mb-2 block text-sm font-semibold"
-              >
-                حد التوصيل المجاني
-              </label>
-
-              <div className="relative">
-                <input
-                  id="free-delivery-threshold"
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputMode="numeric"
-                  placeholder="اتركه فارغاً لتعطيله"
-                  value={
-                    storeSettings.free_delivery_threshold
-                  }
-                  onChange={(
-                    event,
-                  ) =>
-                    setStoreSettings(
-                      (current) => ({
-                        ...current,
-                        free_delivery_threshold:
-                          event
-                            .target
-                            .value,
-                      }),
-                    )
-                  }
-                  className={`${inputClassName()} pe-16`}
-                />
-
-                <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                  د.ج
-                </span>
-              </div>
+              <p className="mt-1 text-sm leading-7 text-muted-foreground">
+                لا توجد قائمة ثابتة.
+                يمكنك إضافة أي ولاية
+                جديدة في المستقبل.
+              </p>
             </div>
           </div>
 
-          <div className="mt-7 flex justify-end">
-            <button
-              type="submit"
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[160px_1fr_200px_200px_auto] xl:items-end">
+            <div>
+              <label
+                htmlFor="new-wilaya-code"
+                className="mb-2 block text-sm font-semibold"
+              >
+                الرمز
+              </label>
+
+              <input
+                id="new-wilaya-code"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={
+                  newWilaya.wilaya_code
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setNewWilaya(
+                    (
+                      current,
+                    ) => ({
+                      ...current,
+
+                      wilaya_code:
+                        event.target
+                          .value,
+                    }),
+                  )
+                }
+                placeholder="69"
+                className={
+                  inputClassName()
+                }
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="new-wilaya-name"
+                className="mb-2 block text-sm font-semibold"
+              >
+                اسم الولاية
+              </label>
+
+              <input
+                id="new-wilaya-name"
+                type="text"
+                value={
+                  newWilaya.wilaya_name
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setNewWilaya(
+                    (
+                      current,
+                    ) => ({
+                      ...current,
+
+                      wilaya_name:
+                        event.target
+                          .value,
+                    }),
+                  )
+                }
+                placeholder="اسم الولاية"
+                className={
+                  inputClassName()
+                }
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="new-home-price"
+                className="mb-2 block text-sm font-semibold"
+              >
+                سعر المنزل
+              </label>
+
+              <input
+                id="new-home-price"
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={
+                  newWilaya.home_price
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setNewWilaya(
+                    (
+                      current,
+                    ) => ({
+                      ...current,
+
+                      home_price:
+                        event.target
+                          .value,
+                    }),
+                  )
+                }
+                placeholder="0"
+                className={
+                  inputClassName()
+                }
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="new-desk-price"
+                className="mb-2 block text-sm font-semibold"
+              >
+                سعر المكتب
+              </label>
+
+              <input
+                id="new-desk-price"
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={
+                  newWilaya.desk_price
+                }
+                onChange={(
+                  event,
+                ) =>
+                  setNewWilaya(
+                    (
+                      current,
+                    ) => ({
+                      ...current,
+
+                      desk_price:
+                        event.target
+                          .value,
+                    }),
+                  )
+                }
+                placeholder="0"
+                className={
+                  inputClassName()
+                }
+              />
+            </div>
+
+            <Button
+              type="button"
               disabled={
-                isStorePending
+                isAdding ||
+                isPending
               }
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-foreground px-5 text-sm font-semibold text-background transition-opacity hover:opacity-85 disabled:pointer-events-none disabled:opacity-50"
+              onClick={
+                handleAdd
+              }
             >
-              <Save
+              <Plus
                 className="size-4"
                 aria-hidden="true"
               />
 
-              {isStorePending
-                ? "جار الحفظ..."
-                : "حفظ المعلومات"}
-            </button>
+              {isAdding
+                ? "جار الإضافة..."
+                : "إضافة"}
+            </Button>
           </div>
-        </form>
-      ) : (
-        <section className="overflow-hidden rounded-2xl border border-border bg-white shadow-sm dark:bg-card">
-          <div className="border-b border-border p-5 sm:p-6">
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-border bg-background shadow-sm">
+          <div className="flex flex-col gap-4 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div className="flex items-start gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                <MapPin
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Truck
                   className="size-5"
                   aria-hidden="true"
                 />
@@ -490,168 +676,311 @@ export function SettingsTabs({
 
               <div>
                 <h2 className="text-lg font-bold">
-                  أسعار التوصيل
+                  الولايات المفعلة
                 </h2>
 
                 <p className="mt-1 text-sm leading-7 text-muted-foreground">
-                  عدّل سعر التوصيل إلى
-                  المنزل والمكتب لكل
-                  ولاية ثم احفظ الصف.
+                  عدّل الرمز أو الاسم
+                  أو الأسعار ثم اضغط
+                  حفظ.
                 </p>
               </div>
             </div>
+
+            <div className="rounded-full bg-muted px-4 py-2 text-sm font-semibold">
+              {
+                rows.length
+              }{" "}
+              ولاية
+            </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40">
-                  <th className="w-20 px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
-                    الرمز
-                  </th>
+          {rows.length ===
+          0 ? (
+            <div className="flex min-h-56 flex-col items-center justify-center p-8 text-center">
+              <MapPin
+                className="mb-4 size-8 text-muted-foreground"
+                aria-hidden="true"
+              />
 
-                  <th className="px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
-                    الولاية
-                  </th>
+              <h3 className="font-semibold">
+                لا توجد ولايات
+              </h3>
 
-                  <th className="w-52 px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
-                    إلى المنزل
-                  </th>
+              <p className="mt-2 text-sm text-muted-foreground">
+                أضف أول ولاية
+                للتوصيل من النموذج
+                أعلاه.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40">
+                    <th className="w-32 px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
+                      الرمز
+                    </th>
 
-                  <th className="w-52 px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
-                    إلى المكتب
-                  </th>
+                    <th className="px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
+                      الولاية
+                    </th>
 
-                  <th className="w-32 px-5 py-4 text-end text-xs font-semibold text-muted-foreground">
-                    حفظ
-                  </th>
-                </tr>
-              </thead>
+                    <th className="w-52 px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
+                      المنزل
+                    </th>
 
-              <tbody>
-                {deliveryPrices.map(
-                  (row) => {
-                    const isSaving =
-                      isDeliveryPending &&
-                      savingWilayaCode ===
-                        row.wilaya_code;
+                    <th className="w-52 px-5 py-4 text-start text-xs font-semibold text-muted-foreground">
+                      المكتب
+                    </th>
 
-                    return (
+                    <th className="w-56 px-5 py-4 text-end text-xs font-semibold text-muted-foreground">
+                      الإجراءات
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {rows.map(
+                    (
+                      row,
+                    ) => (
                       <tr
                         key={
-                          row.wilaya_code
+                          row.original_wilaya_code
                         }
                         className="border-b border-border last:border-b-0"
                       >
-                        <td className="px-5 py-3 font-medium tabular-nums">
-                          {String(
-                            row.wilaya_code,
-                          ).padStart(
-                            2,
-                            "0",
-                          )}
+                        <td className="px-5 py-4">
+                          <input
+                            type="number"
+                            min={1}
+                            step={1}
+                            inputMode="numeric"
+                            value={
+                              row.wilaya_code
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateRow(
+                                row.original_wilaya_code,
+                                "wilaya_code",
+                                event
+                                  .target
+                                  .value,
+                              )
+                            }
+                            className={
+                              inputClassName()
+                            }
+                          />
                         </td>
 
-                        <td className="px-5 py-3 font-semibold">
-                          {
-                            row.wilaya_name
-                          }
+                        <td className="px-5 py-4">
+                          <input
+                            type="text"
+                            value={
+                              row.wilaya_name
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateRow(
+                                row.original_wilaya_code,
+                                "wilaya_name",
+                                event
+                                  .target
+                                  .value,
+                              )
+                            }
+                            className={
+                              inputClassName()
+                            }
+                          />
                         </td>
 
-                        <td className="px-5 py-3">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              inputMode="numeric"
-                              value={
-                                row.home_price
-                              }
-                              onChange={(
-                                event,
-                              ) =>
-                                updateDeliveryPrice(
-                                  row.wilaya_code,
-                                  "home_price",
-                                  event
-                                    .target
-                                    .value,
-                                )
-                              }
-                              className="h-10 w-full rounded-lg border border-input bg-background ps-3 pe-14 text-sm outline-none focus:ring-2 focus:ring-ring/20"
-                            />
-
-                            <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                              د.ج
-                            </span>
-                          </div>
+                        <td className="px-5 py-4">
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            value={
+                              row.home_price
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateRow(
+                                row.original_wilaya_code,
+                                "home_price",
+                                event
+                                  .target
+                                  .value,
+                              )
+                            }
+                            className={
+                              inputClassName()
+                            }
+                          />
                         </td>
 
-                        <td className="px-5 py-3">
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              inputMode="numeric"
-                              value={
-                                row.desk_price
-                              }
-                              onChange={(
-                                event,
-                              ) =>
-                                updateDeliveryPrice(
-                                  row.wilaya_code,
-                                  "desk_price",
-                                  event
-                                    .target
-                                    .value,
-                                )
-                              }
-                              className="h-10 w-full rounded-lg border border-input bg-background ps-3 pe-14 text-sm outline-none focus:ring-2 focus:ring-ring/20"
-                            />
-
-                            <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                              د.ج
-                            </span>
-                          </div>
+                        <td className="px-5 py-4">
+                          <input
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            value={
+                              row.desk_price
+                            }
+                            onChange={(
+                              event,
+                            ) =>
+                              updateRow(
+                                row.original_wilaya_code,
+                                "desk_price",
+                                event
+                                  .target
+                                  .value,
+                              )
+                            }
+                            className={
+                              inputClassName()
+                            }
+                          />
                         </td>
 
-                        <td className="px-5 py-3">
-                          <div className="flex justify-end">
-                            <button
+                        <td className="px-5 py-4">
+                          <div className="flex justify-end gap-2">
+                            <Button
                               type="button"
+                              size="sm"
                               disabled={
-                                isDeliveryPending
+                                isPending
                               }
                               onClick={() =>
-                                handleSaveWilaya(
+                                handleSave(
                                   row,
                                 )
                               }
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
                             >
                               <Save
                                 className="size-4"
                                 aria-hidden="true"
                               />
 
-                              {isSaving
+                              {savingCode ===
+                              row.original_wilaya_code
                                 ? "جار الحفظ..."
                                 : "حفظ"}
-                            </button>
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={
+                                isPending
+                              }
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() =>
+                                setDeleteTarget(
+                                  row,
+                                )
+                              }
+                            >
+                              <Trash2
+                                className="size-4"
+                                aria-hidden="true"
+                              />
+
+                              حذف
+                            </Button>
                           </div>
                         </td>
                       </tr>
-                    );
-                  },
-                )}
-              </tbody>
-            </table>
-          </div>
+                    ),
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
-      )}
-    </div>
+      </div>
+
+      <Dialog
+        open={
+          Boolean(
+            deleteTarget,
+          )
+        }
+        onOpenChange={(
+          open,
+        ) => {
+          if (
+            !open &&
+            !isPending
+          ) {
+            setDeleteTarget(
+              null,
+            );
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              حذف ولاية التوصيل
+            </DialogTitle>
+
+            <DialogDescription>
+              {deleteTarget
+                ? `هل تريد حذف ولاية ${deleteTarget.wilaya_name}؟`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm leading-7 text-destructive">
+            بعد الحذف لن تظهر هذه
+            الولاية للعملاء عند
+            إنشاء طلب جديد.
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                isPending
+              }
+              onClick={() =>
+                setDeleteTarget(
+                  null,
+                )
+              }
+            >
+              تراجع
+            </Button>
+
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                isPending
+              }
+              onClick={
+                handleDelete
+              }
+            >
+              {isPending
+                ? "جار الحذف..."
+                : "حذف الولاية"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

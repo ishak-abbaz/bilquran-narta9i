@@ -23,15 +23,11 @@ type DeliveryPrice = {
 interface ProductDetailsClientProps {
   product: Product;
   deliveryPrices: DeliveryPrice[];
-  freeDeliveryThreshold:
-    | number
-    | null;
 }
 
 export default function ProductDetailsClient({
   product,
   deliveryPrices,
-  freeDeliveryThreshold,
 }: ProductDetailsClientProps) {
   const images =
     product.images.slice(
@@ -78,7 +74,7 @@ export default function ProductDetailsClient({
         </div>
 
         {images.length >
-        0 ? (
+        1 ? (
           <div className="flex flex-wrap gap-3">
             {images.map(
               (
@@ -202,18 +198,6 @@ export default function ProductDetailsClient({
               )}
             </dd>
           </div>
-
-          <div className="grid grid-cols-[100px_1fr] gap-4 py-4 text-sm">
-            <dt className="font-semibold text-muted-foreground">
-              المخزون
-            </dt>
-
-            <dd className="font-medium">
-              {
-                product.stock
-              }
-            </dd>
-          </div>
         </dl>
 
         <div className="mt-8">
@@ -235,9 +219,6 @@ export default function ProductDetailsClient({
               }
               deliveryPrices={
                 deliveryPrices
-              }
-              freeDeliveryThreshold={
-                freeDeliveryThreshold
               }
             />
           ) : (

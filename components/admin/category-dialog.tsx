@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import {
@@ -23,6 +24,7 @@ import {
 import {
   Controller,
   useForm,
+  useWatch,
 } from "react-hook-form";
 import {
   toast,

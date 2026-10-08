@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import CategoryDialog from "@/components/admin/category-dialog";
 import CategorySortButtons from "@/components/admin/category-sort-buttons";
 import DeleteCategoryButton from "@/components/admin/delete-category-button";

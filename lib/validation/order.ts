@@ -1,120 +1,132 @@
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 import {
   isValidAlgerianPhone,
 } from "@/lib/data/phone";
 
-export const orderSchema = z
-  .object({
-    productId: z
-      .string()
-      .uuid(
-        "معرف الكتاب غير صالح",
-      ),
+const POSTGRES_INTEGER_MAX =
+  2_147_483_647;
 
-    quantity: z
-      .number({
-        error:
-          "الكمية غير صالحة",
-      })
-      .int(
-        "الكمية غير صالحة",
-      )
-      .min(
-        1,
-        "الكمية يجب أن تكون 1 على الأقل",
-      )
-      .max(
-        10,
-        "الحد الأقصى للطلب هو 10 نسخ",
-      ),
+export const orderSchema =
+  z
+    .object({
+      productId:
+        z
+          .string()
+          .uuid(
+            "معرّف الكتاب غير صالح.",
+          ),
 
-    fullName: z
-      .string()
-      .trim()
-      .min(
-        3,
-        "الاسم الكامل مطلوب",
-      )
-      .max(
-        100,
-        "الاسم الكامل طويل جداً",
-      ),
+      quantity:
+        z
+          .number()
+          .int(
+            "الكمية غير صالحة.",
+          )
+          .min(
+            1,
+            "الكمية يجب أن تكون 1 على الأقل.",
+          )
+          .max(
+            10,
+            "لا يمكن طلب أكثر من 10 نسخ في الطلب الواحد.",
+          ),
 
-    phone: z
-      .string()
-      .trim()
-      .refine(
-        isValidAlgerianPhone,
-        "رقم الهاتف غير صالح",
-      ),
+      fullName:
+        z
+          .string()
+          .trim()
+          .min(
+            2,
+            "الاسم الكامل مطلوب.",
+          )
+          .max(
+            100,
+            "الاسم طويل جداً.",
+          ),
 
-    wilayaCode: z
-      .number({
-        error:
-          "اختر الولاية",
-      })
-      .int(
-        "اختر الولاية",
-      )
-      .min(
-        1,
-        "اختر الولاية",
-      ),
+      phone:
+        z
+          .string()
+          .trim()
+          .refine(
+            isValidAlgerianPhone,
+            "رقم الهاتف غير صالح.",
+          ),
 
-    deliveryType: z.enum(
-      [
-        "home",
-        "desk",
-      ],
-      {
-        error:
-          "اختر نوع التوصيل",
+      wilayaCode:
+        z
+          .number()
+          .int(
+            "رمز الولاية غير صالح.",
+          )
+          .min(
+            1,
+            "اختر الولاية.",
+          )
+          .max(
+            POSTGRES_INTEGER_MAX,
+            "رمز الولاية غير صالح.",
+          ),
+
+      deliveryType:
+        z.enum([
+          "home",
+          "desk",
+        ]),
+
+      address:
+        z
+          .string()
+          .trim()
+          .max(
+            500,
+            "العنوان طويل جداً.",
+          )
+          .optional(),
+
+      notes:
+        z
+          .string()
+          .trim()
+          .max(
+            1000,
+            "الملاحظات طويلة جداً.",
+          )
+          .optional(),
+    })
+    .superRefine(
+      (
+        data,
+        context,
+      ) => {
+        if (
+          data.deliveryType ===
+            "home" &&
+          (
+            !data.address ||
+            data.address
+              .trim()
+              .length <
+              5
+          )
+        ) {
+          context.addIssue({
+            code:
+              "custom",
+
+            path: [
+              "address",
+            ],
+
+            message:
+              "العنوان مطلوب للتوصيل إلى المنزل.",
+          });
+        }
       },
-    ),
-
-    address: z
-      .string()
-      .trim()
-      .max(
-        300,
-        "العنوان طويل جداً",
-      )
-      .optional(),
-
-    notes: z
-      .string()
-      .trim()
-      .max(
-        1000,
-        "الملاحظات طويلة جداً",
-      )
-      .optional(),
-  })
-  .superRefine(
-    (
-      data,
-      ctx,
-    ) => {
-      if (
-        data.deliveryType ===
-          "home" &&
-        (
-          !data.address ||
-          data.address.length < 5
-        )
-      ) {
-        ctx.addIssue({
-          code: "custom",
-          path: [
-            "address",
-          ],
-          message:
-            "العنوان مطلوب",
-        });
-      }
-    },
-  );
+    );
 
 export type OrderInput =
   z.infer<

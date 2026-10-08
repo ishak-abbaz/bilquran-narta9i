@@ -86,7 +86,7 @@ export default function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <button
+          {/* <button
             type="button"
             onClick={
               toggleTheme
@@ -105,7 +105,7 @@ export default function Header() {
               className="block dark:hidden"
               aria-hidden="true"
             />
-          </button>
+          </button> */}
 
           <div className="md:hidden">
             <Sheet>

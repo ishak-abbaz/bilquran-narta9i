@@ -9,12 +9,31 @@ import {
   useEffect,
   useRef,
 } from "react";
-import { toast } from "sonner";
+import {
+  toast,
+} from "sonner";
 
 import {
-  initialContactActionState,
   sendContactMessage,
 } from "@/app/(store)/contact/actions";
+
+type ContactActionState = {
+  success: boolean;
+  message: string;
+
+  errors: {
+    name?: string[];
+    phone?: string[];
+    message?: string[];
+  };
+};
+
+const initialContactActionState:
+  ContactActionState = {
+  success: false,
+  message: "",
+  errors: {},
+};
 
 export function ContactForm() {
   const formRef =
@@ -31,30 +50,46 @@ export function ContactForm() {
     initialContactActionState,
   );
 
+  const errors =
+    state?.errors ??
+    {};
+
   useEffect(() => {
-    if (!state.message) {
+    if (
+      !state?.message
+    ) {
       return;
     }
 
-    if (state.success) {
+    if (
+      state.success
+    ) {
       toast.success(
         state.message,
       );
 
       formRef.current?.reset();
-    } else {
-      toast.error(
-        state.message,
-      );
+
+      return;
     }
-  }, [state]);
+
+    toast.error(
+      state.message,
+    );
+  }, [
+    state.message,
+    state.success,
+  ]);
 
   return (
     <form
       ref={formRef}
-      action={formAction}
-      className="rounded-2xl border border-border bg-white p-5 shadow-sm dark:bg-card sm:p-6"
+      action={
+        formAction
+      }
+      className="w-full rounded-3xl border border-border bg-background p-6 shadow-sm sm:p-8"
     >
+      {/* Honeypot anti-spam field */}
       <div
         className="absolute size-px overflow-hidden opacity-0"
         aria-hidden="true"
@@ -72,13 +107,13 @@ export function ContactForm() {
         />
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-6">
         <div>
           <label
             htmlFor="contact-name"
             className="mb-2 block text-sm font-semibold"
           >
-            الاسم
+            الاسم الكامل
           </label>
 
           <input
@@ -86,15 +121,17 @@ export function ContactForm() {
             name="name"
             type="text"
             autoComplete="name"
-            disabled={isPending}
-            placeholder="اسمك الكامل"
-            className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+            disabled={
+              isPending
+            }
+            placeholder="اكتب اسمك الكامل"
+            className="h-12 w-full rounded-xl border border-input bg-background px-4 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
           />
 
-          {state.errors.name?.[0] ? (
-            <p className="mt-2 text-xs text-destructive">
+          {errors.name?.[0] ? (
+            <p className="mt-2 text-xs font-medium text-destructive">
               {
-                state.errors
+                errors
                   .name[0]
               }
             </p>
@@ -114,16 +151,19 @@ export function ContactForm() {
             name="phone"
             type="tel"
             dir="ltr"
+            inputMode="tel"
             autoComplete="tel"
-            disabled={isPending}
+            disabled={
+              isPending
+            }
             placeholder="0550 00 00 00"
-            className="h-11 w-full rounded-xl border border-input bg-background px-3 text-end text-sm outline-none transition placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+            className="h-12 w-full rounded-xl border border-input bg-background px-4 text-end text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
           />
 
-          {state.errors.phone?.[0] ? (
-            <p className="mt-2 text-xs text-destructive">
+          {errors.phone?.[0] ? (
+            <p className="mt-2 text-xs font-medium text-destructive">
               {
-                state.errors
+                errors
                   .phone[0]
               }
             </p>
@@ -141,16 +181,18 @@ export function ContactForm() {
           <textarea
             id="contact-message"
             name="message"
-            rows={7}
-            disabled={isPending}
-            placeholder="كيف يمكننا مساعدتك؟"
-            className="w-full resize-y rounded-xl border border-input bg-background px-3 py-3 text-sm leading-7 outline-none transition placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+            rows={8}
+            disabled={
+              isPending
+            }
+            placeholder="اكتب رسالتك هنا..."
+            className="w-full resize-y rounded-xl border border-input bg-background px-4 py-3 text-sm leading-7 outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
           />
 
-          {state.errors.message?.[0] ? (
-            <p className="mt-2 text-xs text-destructive">
+          {errors.message?.[0] ? (
+            <p className="mt-2 text-xs font-medium text-destructive">
               {
-                state.errors
+                errors
                   .message[0]
               }
             </p>
@@ -158,26 +200,44 @@ export function ContactForm() {
         </div>
       </div>
 
+      {state.message &&
+      !state.success ? (
+        <div
+          role="alert"
+          className="mt-6 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive"
+        >
+          {
+            state.message
+          }
+        </div>
+      ) : null}
+
       <button
         type="submit"
-        disabled={isPending}
-        className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground px-5 text-sm font-semibold text-background transition-opacity hover:opacity-85 disabled:pointer-events-none disabled:opacity-50 sm:w-auto"
+        disabled={
+          isPending
+        }
+        className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
       >
         {isPending ? (
-          <Loader2
-            className="size-4 animate-spin"
-            aria-hidden="true"
-          />
-        ) : (
-          <Send
-            className="size-4"
-            aria-hidden="true"
-          />
-        )}
+          <>
+            <Loader2
+              className="size-4 animate-spin"
+              aria-hidden="true"
+            />
 
-        {isPending
-          ? "جار الإرسال..."
-          : "إرسال الرسالة"}
+            جار إرسال الرسالة...
+          </>
+        ) : (
+          <>
+            <Send
+              className="size-4"
+              aria-hidden="true"
+            />
+
+            إرسال الرسالة
+          </>
+        )}
       </button>
     </form>
   );

@@ -1,276 +1,155 @@
 "use server";
 
+import "server-only";
+
 import {
   revalidatePath,
 } from "next/cache";
-import { z } from "zod";
+import {
+  z,
+} from "zod";
 
 import {
-  getWilayaByCode,
-} from "@/lib/algeria-wilayas";
-import { requireAdmin } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+  requireAdmin,
+} from "@/lib/auth";
+import {
+  createClient,
+} from "@/lib/supabase/server";
 
-const storeSettingsSchema =
+const POSTGRES_INTEGER_MAX =
+  2_147_483_647;
+
+const wilayaCodeSchema =
+  z
+    .number()
+    .int(
+      "رمز الولاية يجب أن يكون عدداً صحيحاً.",
+    )
+    .min(
+      1,
+      "رمز الولاية يجب أن يكون أكبر من صفر.",
+    )
+    .max(
+      POSTGRES_INTEGER_MAX,
+      "رمز الولاية كبير جداً.",
+    );
+
+const deliveryWilayaSchema =
   z.object({
-    store_name: z
-      .string()
-      .trim()
-      .min(
-        2,
-        "اسم المتجر مطلوب.",
-      )
-      .max(
-        100,
-        "اسم المتجر طويل جداً.",
-      ),
+    wilaya_code:
+      wilayaCodeSchema,
 
-    phone: z
-      .string()
-      .trim()
-      .max(
-        30,
-        "رقم الهاتف طويل جداً.",
-      ),
-
-    email: z.union([
-      z.literal(""),
+    wilaya_name:
       z
         .string()
         .trim()
-        .email(
-          "البريد الإلكتروني غير صالح.",
+        .min(
+          1,
+          "اسم الولاية مطلوب.",
         )
-        .max(150),
-    ]),
+        .max(
+          100,
+          "اسم الولاية طويل جداً.",
+        ),
 
-    instagram: z
-      .string()
-      .trim()
-      .max(
-        200,
-        "حساب إنستغرام طويل جداً.",
-      ),
-
-    address: z
-      .string()
-      .trim()
-      .max(
-        500,
-        "العنوان طويل جداً.",
-      ),
-
-    free_delivery_threshold:
+    home_price:
       z
         .number()
         .int(
-          "قيمة التوصيل المجاني يجب أن تكون عدداً صحيحاً.",
+          "سعر التوصيل إلى المنزل يجب أن يكون عدداً صحيحاً.",
         )
         .min(
           0,
-          "قيمة التوصيل المجاني لا يمكن أن تكون سالبة.",
+          "سعر التوصيل إلى المنزل لا يمكن أن يكون سالباً.",
         )
         .max(
-          1_000_000_000,
+          1_000_000,
+          "سعر التوصيل إلى المنزل كبير جداً.",
+        ),
+
+    desk_price:
+      z
+        .number()
+        .int(
+          "سعر التوصيل إلى المكتب يجب أن يكون عدداً صحيحاً.",
         )
-        .nullable(),
+        .min(
+          0,
+          "سعر التوصيل إلى المكتب لا يمكن أن يكون سالباً.",
+        )
+        .max(
+          1_000_000,
+          "سعر التوصيل إلى المكتب كبير جداً.",
+        ),
   });
 
-const deliveryPriceSchema =
-  z.object({
-    wilaya_code: z
-      .number()
-      .int()
-      .min(1)
-      .max(58),
-
-    home_price: z
-      .number()
-      .int(
-        "سعر التوصيل إلى المنزل يجب أن يكون عدداً صحيحاً.",
-      )
-      .min(
-        0,
-        "سعر التوصيل إلى المنزل لا يمكن أن يكون سالباً.",
-      )
-      .max(
-        1_000_000,
-      ),
-
-    desk_price: z
-      .number()
-      .int(
-        "سعر التوصيل إلى المكتب يجب أن يكون عدداً صحيحاً.",
-      )
-      .min(
-        0,
-        "سعر التوصيل إلى المكتب لا يمكن أن يكون سالباً.",
-      )
-      .max(
-        1_000_000,
-      ),
-  });
-
-export type SettingsActionResult = {
-  success: boolean;
-  message: string;
-};
-
-export type StoreSettingsInput =
+export type DeliveryWilayaInput =
   z.infer<
-    typeof storeSettingsSchema
+    typeof deliveryWilayaSchema
   >;
 
-export type DeliveryPriceInput =
-  z.infer<
-    typeof deliveryPriceSchema
-  >;
+export type DeliveryActionResult =
+  | {
+      success: true;
+      message: string;
+    }
+  | {
+      success: false;
+      message: string;
+    };
 
-function revalidateOrderPages() {
-  /*
-   * Product pages display the free-delivery
-   * threshold and delivery prices inside
-   * the direct-order form.
-   */
+function revalidateDeliveryPages() {
+  revalidatePath(
+    "/admin/settings",
+  );
+
+  revalidatePath(
+    "/shop",
+  );
+
   revalidatePath(
     "/product/[slug]",
     "page",
   );
 }
 
-export async function saveStoreSettings(
-  input: StoreSettingsInput,
-): Promise<SettingsActionResult> {
-  await requireAdmin();
-
-  const parsed =
-    storeSettingsSchema.safeParse(
-      input,
-    );
-
-  if (!parsed.success) {
-    return {
-      success: false,
-      message:
-        parsed.error
-          .issues[0]
-          ?.message ??
-        "بيانات المتجر غير صالحة.",
-    };
+function databaseErrorMessage(
+  error: {
+    code?:
+      | string
+      | null;
+  },
+) {
+  if (
+    error.code ===
+    "23505"
+  ) {
+    return "رمز الولاية مستخدم بالفعل.";
   }
 
-  const supabase =
-    await createClient();
-
-  const {
-    error,
-  } = await supabase
-    .from("settings")
-    .upsert(
-      {
-        id: 1,
-
-        store_name:
-          parsed.data
-            .store_name,
-
-        phone:
-          parsed.data
-            .phone ||
-          null,
-
-        email:
-          parsed.data
-            .email ||
-          null,
-
-        instagram:
-          parsed.data
-            .instagram ||
-          null,
-
-        address:
-          parsed.data
-            .address ||
-          null,
-
-        free_delivery_threshold:
-          parsed.data
-            .free_delivery_threshold,
-      },
-      {
-        onConflict:
-          "id",
-      },
-    );
-
-  if (error) {
-    console.error(
-      "فشل حفظ معلومات المتجر:",
-      error,
-    );
-
-    return {
-      success: false,
-      message:
-        "تعذر حفظ معلومات المتجر. حاول مرة أخرى.",
-    };
-  }
-
-  revalidatePath(
-    "/admin/settings",
-  );
-
-  revalidatePath(
-    "/",
-    "layout",
-  );
-
-  revalidatePath(
-    "/contact",
-  );
-
-  revalidateOrderPages();
-
-  return {
-    success: true,
-    message:
-      "تم حفظ معلومات المتجر بنجاح.",
-  };
+  return "تعذر حفظ بيانات الولاية. حاول مرة أخرى.";
 }
 
-export async function saveDeliveryPrice(
-  input: DeliveryPriceInput,
-): Promise<SettingsActionResult> {
+export async function createDeliveryWilaya(
+  input:
+    DeliveryWilayaInput,
+): Promise<DeliveryActionResult> {
   await requireAdmin();
 
   const parsed =
-    deliveryPriceSchema.safeParse(
+    deliveryWilayaSchema.safeParse(
       input,
     );
 
   if (!parsed.success) {
     return {
       success: false,
+
       message:
         parsed.error
           .issues[0]
           ?.message ??
-        "بيانات التوصيل غير صالحة.",
-    };
-  }
-
-  const wilaya =
-    getWilayaByCode(
-      parsed.data
-        .wilaya_code,
-    );
-
-  if (!wilaya) {
-    return {
-      success: false,
-      message:
-        "الولاية غير صالحة.",
+        "بيانات الولاية غير صالحة.",
     };
   }
 
@@ -283,50 +162,232 @@ export async function saveDeliveryPrice(
     .from(
       "delivery_prices",
     )
-    .upsert(
-      {
-        wilaya_code:
-          wilaya.code,
+    .insert({
+      wilaya_code:
+        parsed.data
+          .wilaya_code,
 
-        wilaya_name:
-          wilaya.name,
+      wilaya_name:
+        parsed.data
+          .wilaya_name,
 
-        home_price:
-          parsed.data
-            .home_price,
+      home_price:
+        parsed.data
+          .home_price,
 
-        desk_price:
-          parsed.data
-            .desk_price,
-      },
-      {
-        onConflict:
-          "wilaya_code",
-      },
-    );
+      desk_price:
+        parsed.data
+          .desk_price,
+    });
 
   if (error) {
     console.error(
-      "فشل حفظ سعر التوصيل:",
+      "فشل إضافة ولاية التوصيل:",
       error,
     );
 
     return {
       success: false,
+
       message:
-        "تعذر حفظ سعر التوصيل. حاول مرة أخرى.",
+        databaseErrorMessage(
+          error,
+        ),
     };
   }
 
-  revalidatePath(
-    "/admin/settings",
-  );
-
-  revalidateOrderPages();
+  revalidateDeliveryPages();
 
   return {
     success: true,
+
     message:
-      `تم حفظ أسعار ولاية ${wilaya.name}.`,
+      `تمت إضافة ولاية ${parsed.data.wilaya_name}.`,
+  };
+}
+
+export async function updateDeliveryWilaya(
+  originalWilayaCode:
+    number,
+  input:
+    DeliveryWilayaInput,
+): Promise<DeliveryActionResult> {
+  await requireAdmin();
+
+  const parsedOriginalCode =
+    wilayaCodeSchema.safeParse(
+      originalWilayaCode,
+    );
+
+  const parsedInput =
+    deliveryWilayaSchema.safeParse(
+      input,
+    );
+
+  if (
+    !parsedOriginalCode.success
+  ) {
+    return {
+      success: false,
+
+      message:
+        "رمز الولاية الأصلي غير صالح.",
+    };
+  }
+
+  if (
+    !parsedInput.success
+  ) {
+    return {
+      success: false,
+
+      message:
+        parsedInput.error
+          .issues[0]
+          ?.message ??
+        "بيانات الولاية غير صالحة.",
+    };
+  }
+
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "delivery_prices",
+    )
+    .update({
+      wilaya_code:
+        parsedInput.data
+          .wilaya_code,
+
+      wilaya_name:
+        parsedInput.data
+          .wilaya_name,
+
+      home_price:
+        parsedInput.data
+          .home_price,
+
+      desk_price:
+        parsedInput.data
+          .desk_price,
+    })
+    .eq(
+      "wilaya_code",
+      parsedOriginalCode.data,
+    )
+    .select(
+      "wilaya_code",
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "فشل تحديث ولاية التوصيل:",
+      error,
+    );
+
+    return {
+      success: false,
+
+      message:
+        databaseErrorMessage(
+          error,
+        ),
+    };
+  }
+
+  if (!data) {
+    return {
+      success: false,
+
+      message:
+        "الولاية غير موجودة أو تم حذفها.",
+    };
+  }
+
+  revalidateDeliveryPages();
+
+  return {
+    success: true,
+
+    message:
+      `تم حفظ ولاية ${parsedInput.data.wilaya_name}.`,
+  };
+}
+
+export async function deleteDeliveryWilaya(
+  wilayaCode: number,
+): Promise<DeliveryActionResult> {
+  await requireAdmin();
+
+  const parsed =
+    wilayaCodeSchema.safeParse(
+      wilayaCode,
+    );
+
+  if (!parsed.success) {
+    return {
+      success: false,
+
+      message:
+        "رمز الولاية غير صالح.",
+    };
+  }
+
+  const supabase =
+    await createClient();
+
+  const {
+    data,
+    error,
+  } = await supabase
+    .from(
+      "delivery_prices",
+    )
+    .delete()
+    .eq(
+      "wilaya_code",
+      parsed.data,
+    )
+    .select(
+      "wilaya_name",
+    )
+    .maybeSingle();
+
+  if (error) {
+    console.error(
+      "فشل حذف ولاية التوصيل:",
+      error,
+    );
+
+    return {
+      success: false,
+
+      message:
+        "تعذر حذف الولاية. حاول مرة أخرى.",
+    };
+  }
+
+  if (!data) {
+    return {
+      success: false,
+
+      message:
+        "الولاية غير موجودة أو تم حذفها مسبقاً.",
+    };
+  }
+
+  revalidateDeliveryPages();
+
+  return {
+    success: true,
+
+    message:
+      `تم حذف ولاية ${data.wilaya_name} من قائمة التوصيل.`,
   };
 }
