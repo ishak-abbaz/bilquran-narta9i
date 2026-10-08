@@ -7,7 +7,7 @@ const year =
  * Replace these with your real profile URLs.
  * Keep https:// at the beginning.
  */
-const INSTAGRAM_URL =
+const INSTAGRAM_URL = 
   "https://instagram.com/";
 
 const FACEBOOK_URL =
