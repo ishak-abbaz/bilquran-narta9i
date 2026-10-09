@@ -1,20 +1,52 @@
-import { NextRequest, NextResponse } from "next/server";
-import { updateSession } from "@/lib/supabase/proxy";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-export async function proxy(request: NextRequest) {
-  const { response, user } = await updateSession(request);
+import {
+  updateSession,
+} from "@/lib/supabase/proxy";
 
-  const pathname = request.nextUrl.pathname;
+export async function proxy(
+  request: NextRequest,
+) {
+  const {
+    response,
+    user,
+  } =
+    await updateSession(
+      request,
+    );
 
-  const isAdminRoute = pathname.startsWith("/admin");
-  const isLoginPage = pathname === "/admin/login";
+  const pathname =
+    request.nextUrl.pathname;
 
-  if (isAdminRoute && !isLoginPage && !user) {
-    const redirectUrl = request.nextUrl.clone();
+  const isAdminRoute =
+    pathname.startsWith(
+      "/admin",
+    );
 
-    redirectUrl.pathname = "/admin/login";
+  const isLoginPage =
+    pathname ===
+    "/admin/login";
 
-    return NextResponse.redirect(redirectUrl);
+  if (
+    isAdminRoute &&
+    !isLoginPage &&
+    !user
+  ) {
+    const redirectUrl =
+      request.nextUrl.clone();
+
+    redirectUrl.pathname =
+      "/admin/login";
+
+    redirectUrl.search =
+      "";
+
+    return NextResponse.redirect(
+      redirectUrl,
+    );
   }
 
   return response;

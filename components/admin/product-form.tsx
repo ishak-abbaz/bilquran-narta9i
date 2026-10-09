@@ -18,6 +18,8 @@ import {
 } from "next/navigation";
 import {
   type ChangeEvent,
+  useEffect,
+  useRef,
   useState,
 } from "react";
 import {
@@ -34,7 +36,6 @@ import {
 } from "@/app/admin/(panel)/products/actions";
 import {
   MAX_PRODUCT_IMAGE_BYTES,
-  MAX_PRODUCT_IMAGE_COUNT,
   prepareProductImage,
 } from "@/lib/images/compress-product-image";
 import {
@@ -48,6 +49,12 @@ import {
 import {
   createClient,
 } from "@/lib/supabase/client";
+
+const MAX_BOOK_IMAGES =
+  3;
+
+const INTERNAL_STOCK =
+  1_000_000;
 
 const RIWAYA_SUGGESTIONS = [
   "حفص عن عاصم",
@@ -64,9 +71,12 @@ type ProductFormProps = {
   mode:
     | "create"
     | "edit";
+
   categories:
     CategoryOption[];
+
   productId?: string;
+
   initialValues?:
     ProductFormValues;
 };
@@ -77,10 +87,10 @@ function fieldClassName(
   return [
     "h-11 w-full rounded-xl border bg-background px-3 text-sm outline-none transition",
     "placeholder:text-muted-foreground",
-    "focus:ring-2 focus:ring-ring/20",
+    "focus:ring-2 focus:ring-primary/15",
     hasError
       ? "border-destructive focus:border-destructive"
-      : "border-input focus:border-foreground/30",
+      : "border-input focus:border-primary",
   ].join(" ");
 }
 
@@ -90,10 +100,10 @@ function textareaClassName(
   return [
     "min-h-36 w-full resize-y rounded-xl border bg-background px-3 py-3 text-sm leading-7 outline-none transition",
     "placeholder:text-muted-foreground",
-    "focus:ring-2 focus:ring-ring/20",
+    "focus:ring-2 focus:ring-primary/15",
     hasError
       ? "border-destructive focus:border-destructive"
-      : "border-input focus:border-foreground/30",
+      : "border-input focus:border-primary",
   ].join(" ");
 }
 
@@ -118,15 +128,12 @@ export function ProductForm({
     mode === "edit",
   );
 
-  const [
-    newlyUploadedImages,
-    setNewlyUploadedImages,
-  ] = useState<
-    Record<
-      string,
-      string
-    >
-  >({});
+  const newlyUploadedImages =
+    useRef<
+      Map<string, string>
+    >(
+      new Map(),
+    );
 
   const {
     register,
@@ -149,15 +156,30 @@ export function ProductForm({
         initialValues
           ? {
               ...initialValues,
+
               images: [
                 ...initialValues.images,
               ],
             }
           : {
               ...emptyProductFormValues,
+
+              /*
+               * Stock is kept internally only.
+               * It is not editable by the admin.
+               */
+              stock:
+                INTERNAL_STOCK,
+
               images: [],
             },
     });
+
+  const bookName =
+    useWatch({
+      control,
+      name: "name",
+    }) ?? "";
 
   const images =
     useWatch({
@@ -165,11 +187,31 @@ export function ProductForm({
       name: "images",
     }) ?? [];
 
-  const nameRegistration =
-    register("name");
+  useEffect(() => {
+    if (
+      slugIsManuallyEdited
+    ) {
+      return;
+    }
 
-  const slugRegistration =
-    register("slug");
+    setValue(
+      "slug",
+      arabicSafeSlug(
+        bookName,
+      ),
+      {
+        shouldDirty:
+          true,
+
+        shouldValidate:
+          true,
+      },
+    );
+  }, [
+    bookName,
+    setValue,
+    slugIsManuallyEdited,
+  ]);
 
   async function handleImagesSelected(
     event:
@@ -178,17 +220,15 @@ export function ProductForm({
     const input =
       event.currentTarget;
 
-    const selectedFiles =
+    const files =
       Array.from(
-        input.files ??
-          [],
+        input.files ?? [],
       );
 
     input.value = "";
 
     if (
-      selectedFiles.length ===
-      0
+      files.length === 0
     ) {
       return;
     }
@@ -198,34 +238,16 @@ export function ProductForm({
         "images",
       );
 
-    const availableSlots =
-      MAX_PRODUCT_IMAGE_COUNT -
-      currentImages.length;
-
     if (
-      availableSlots <=
-      0
+      currentImages.length +
+        files.length >
+      MAX_BOOK_IMAGES
     ) {
       toast.error(
-        "وصلت إلى الحد الأقصى وهو 3 صور.",
+        `يمكن إضافة ${MAX_BOOK_IMAGES} صور كحد أقصى للكتاب.`,
       );
 
       return;
-    }
-
-    const filesToUpload =
-      selectedFiles.slice(
-        0,
-        availableSlots,
-      );
-
-    if (
-      selectedFiles.length >
-      availableSlots
-    ) {
-      toast.error(
-        `يمكنك إضافة ${availableSlots} صورة فقط.`,
-      );
     }
 
     setIsUploading(
@@ -241,15 +263,14 @@ export function ProductForm({
       ];
 
       for (
-        const file of
-          filesToUpload
+        const file of files
       ) {
         if (
           file.size >
           MAX_PRODUCT_IMAGE_BYTES
         ) {
           toast.error(
-            `${file.name}: الحجم يتجاوز 3 ميغابايت.`,
+            `${file.name}: حجم الصورة يجب ألا يتجاوز 3 ميغابايت.`,
           );
 
           continue;
@@ -261,7 +282,7 @@ export function ProductForm({
               file,
             );
 
-          const dateFolder =
+          const folder =
             new Date()
               .toISOString()
               .slice(
@@ -270,14 +291,13 @@ export function ProductForm({
               );
 
           const storagePath =
-            `admin/${dateFolder}/${crypto.randomUUID()}.webp`;
+            `admin/${folder}/${crypto.randomUUID()}.webp`;
 
           const {
             error:
               uploadError,
           } =
-            await supabase
-              .storage
+            await supabase.storage
               .from(
                 "products",
               )
@@ -304,20 +324,19 @@ export function ProductForm({
 
           const {
             data,
-          } = supabase
-            .storage
-            .from(
-              "products",
-            )
-            .getPublicUrl(
-              storagePath,
-            );
+          } =
+            supabase.storage
+              .from(
+                "products",
+              )
+              .getPublicUrl(
+                storagePath,
+              );
 
           if (
             !data.publicUrl
           ) {
-            await supabase
-              .storage
+            await supabase.storage
               .from(
                 "products",
               )
@@ -330,14 +349,9 @@ export function ProductForm({
             );
           }
 
-          setNewlyUploadedImages(
-            (
-              current,
-            ) => ({
-              ...current,
-              [data.publicUrl]:
-                storagePath,
-            }),
+          newlyUploadedImages.current.set(
+            data.publicUrl,
+            storagePath,
           );
 
           nextImages = [
@@ -377,29 +391,15 @@ export function ProductForm({
   }
 
   async function removeImage(
-    index: number,
+    imageUrl: string,
   ) {
-    const current =
-      getValues(
-        "images",
+    const storagePath =
+      newlyUploadedImages.current.get(
+        imageUrl,
       );
 
-    const imageUrl =
-      current[
-        index
-      ];
-
-    if (!imageUrl) {
-      return;
-    }
-
-    const newlyUploadedPath =
-      newlyUploadedImages[
-        imageUrl
-      ];
-
     if (
-      newlyUploadedPath
+      storagePath
     ) {
       const supabase =
         createClient();
@@ -407,53 +407,43 @@ export function ProductForm({
       const {
         error,
       } =
-        await supabase
-          .storage
+        await supabase.storage
           .from(
             "products",
           )
           .remove([
-            newlyUploadedPath,
+            storagePath,
           ]);
 
       if (error) {
+        console.error(
+          "تعذر حذف الصورة الجديدة:",
+          error,
+        );
+
         toast.error(
-          "تعذر حذف الصورة المرفوعة.",
+          "تعذر حذف الصورة.",
         );
 
         return;
       }
 
-      setNewlyUploadedImages(
-        (
-          currentMap,
-        ) => {
-          const nextMap = {
-            ...currentMap,
-          };
-
-          delete nextMap[
-            imageUrl
-          ];
-
-          return nextMap;
-        },
+      newlyUploadedImages.current.delete(
+        imageUrl,
       );
     }
 
-    const next =
-      current.filter(
-        (
-          _,
-          currentIndex,
-        ) =>
-          currentIndex !==
-          index,
-      );
-
     setValue(
       "images",
-      next,
+      getValues(
+        "images",
+      ).filter(
+        (
+          currentImage,
+        ) =>
+          currentImage !==
+          imageUrl,
+      ),
       {
         shouldDirty:
           true,
@@ -465,40 +455,42 @@ export function ProductForm({
   }
 
   function moveImage(
-    fromIndex: number,
-    toIndex: number,
+    index: number,
+    direction:
+      | "up"
+      | "down",
   ) {
-    const current = [
-      ...getValues(
-        "images",
-      ),
-    ];
+    const current =
+      [
+        ...getValues(
+          "images",
+        ),
+      ];
+
+    const nextIndex =
+      direction ===
+      "up"
+        ? index - 1
+        : index + 1;
 
     if (
-      toIndex < 0 ||
-      toIndex >=
+      nextIndex <
+        0 ||
+      nextIndex >=
         current.length
     ) {
       return;
     }
 
-    const [
-      movedImage,
-    ] =
-      current.splice(
-        fromIndex,
-        1,
-      );
-
-    if (!movedImage) {
-      return;
-    }
-
-    current.splice(
-      toIndex,
-      0,
-      movedImage,
-    );
+    [
+      current[index],
+      current[nextIndex],
+    ] = [
+      current[
+        nextIndex
+      ],
+      current[index],
+    ];
 
     setValue(
       "images",
@@ -518,19 +510,8 @@ export function ProductForm({
       ProductFormValues,
   ) {
     if (
-      isUploading
-    ) {
-      toast.error(
-        "انتظر حتى يكتمل رفع الصور.",
-      );
-
-      return;
-    }
-
-    if (
-      values.images
-        .length >
-      MAX_PRODUCT_IMAGE_COUNT
+      values.images.length >
+      MAX_BOOK_IMAGES
     ) {
       toast.error(
         "لا يمكن إضافة أكثر من 3 صور للكتاب.",
@@ -539,72 +520,70 @@ export function ProductForm({
       return;
     }
 
-    try {
-      const result =
-        mode ===
-        "create"
-          ? await createProduct(
-              values,
+    /*
+     * Stock stays internal.
+     * Creating a book always starts with
+     * the internal compatibility value.
+     */
+    const payload:
+      ProductFormValues = {
+      ...values,
+
+      stock:
+        mode === "create"
+          ? INTERNAL_STOCK
+          : values.stock,
+    };
+
+    const result =
+      mode === "create"
+        ? await createProduct(
+            payload,
+          )
+        : productId
+          ? await updateProduct(
+              productId,
+              payload,
             )
-          : await updateProduct(
-              productId ??
-                "",
-              values,
-            );
+          : {
+              success:
+                false as const,
 
-      if (
-        !result.success
-      ) {
-        toast.error(
-          result.message,
-        );
+              message:
+                "معرّف الكتاب غير موجود.",
+            };
 
-        return;
-      }
-
-      setNewlyUploadedImages(
-        {},
-      );
-
-      toast.success(
+    if (
+      !result.success
+    ) {
+      toast.error(
         result.message,
       );
 
-      if (
-        mode ===
-        "create"
-      ) {
-        router.push(
-          `/admin/products/${result.productId}`,
-        );
-
-        router.refresh();
-
-        return;
-      }
-
-      router.refresh();
-    } catch (
-      error
-    ) {
-      console.error(
-        "فشل حفظ الكتاب:",
-        error,
-      );
-
-      toast.error(
-        "حدث خطأ غير متوقع أثناء حفظ الكتاب.",
-      );
+      return;
     }
+
+    newlyUploadedImages.current.clear();
+
+    toast.success(
+      result.message,
+    );
+
+    router.push(
+      "/admin/products",
+    );
+
+    router.refresh();
   }
 
-  const isBusy =
+  const slugField =
+    register(
+      "slug",
+    );
+
+  const disabled =
     isSubmitting ||
     isUploading;
-
-  const imageLimitReached =
-    images.length >=
-    MAX_PRODUCT_IMAGE_COUNT;
 
   return (
     <form
@@ -617,32 +596,46 @@ export function ProductForm({
       }}
       className="space-y-6"
     >
+      {/*
+       * Hidden compatibility field.
+       * The admin no longer manages stock.
+       */}
+      <input
+        type="hidden"
+        {...register(
+          "stock",
+          {
+            valueAsNumber:
+              true,
+          },
+        )}
+      />
+
       <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
         <div className="mb-6">
           <h2 className="text-lg font-bold">
-            المعلومات الأساسية
+            معلومات الكتاب
           </h2>
 
           <p className="mt-1 text-sm text-muted-foreground">
-            عنوان الكتاب والرابط
-            والوصف والتصنيف.
+            المعلومات الأساسية
+            التي ستظهر للعميل.
           </p>
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div className="sm:col-span-2">
             <label
-              htmlFor="name"
+              htmlFor="book-name"
               className="mb-2 block text-sm font-semibold"
             >
               عنوان الكتاب
             </label>
 
             <input
-              id="name"
+              id="book-name"
               type="text"
-              autoComplete="off"
-              placeholder="مثال: مصحف المدينة النبوية"
+              placeholder="مثال: مصحف التجويد الملون"
               className={
                 fieldClassName(
                   Boolean(
@@ -650,33 +643,9 @@ export function ProductForm({
                   ),
                 )
               }
-              {...nameRegistration}
-              onChange={(
-                event,
-              ) => {
-                void nameRegistration.onChange(
-                  event,
-                );
-
-                if (
-                  !slugIsManuallyEdited
-                ) {
-                  setValue(
-                    "slug",
-                    arabicSafeSlug(
-                      event.target
-                        .value,
-                    ),
-                    {
-                      shouldDirty:
-                        true,
-
-                      shouldValidate:
-                        true,
-                    },
-                  );
-                }
-              }}
+              {...register(
+                "name",
+              )}
             />
 
             {errors.name ? (
@@ -689,58 +658,33 @@ export function ProductForm({
             ) : null}
           </div>
 
-          <div>
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <label
-                htmlFor="slug"
-                className="text-sm font-semibold"
-              >
-                الرابط المختصر
-              </label>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const generatedSlug =
-                    arabicSafeSlug(
-                      getValues(
-                        "name",
-                      ),
-                    );
-
-                  setSlugIsManuallyEdited(
-                    false,
-                  );
-
-                  setValue(
-                    "slug",
-                    generatedSlug,
-                    {
-                      shouldDirty:
-                        true,
-
-                      shouldValidate:
-                        true,
-                    },
-                  );
-                }}
-                className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
-                توليد من العنوان
-              </button>
-            </div>
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="book-slug"
+              className="mb-2 block text-sm font-semibold"
+            >
+              الرابط المختصر
+            </label>
 
             <input
-              id="slug"
+              id="book-slug"
+              name={
+                slugField.name
+              }
+              ref={
+                slugField.ref
+              }
+              onBlur={
+                slugField.onBlur
+              }
               type="text"
               dir="ltr"
-              autoComplete="off"
+              placeholder="اسم-الكتاب"
               className={`${fieldClassName(
                 Boolean(
                   errors.slug,
                 ),
               )} text-end`}
-              {...slugRegistration}
               onChange={(
                 event,
               ) => {
@@ -748,14 +692,20 @@ export function ProductForm({
                   true,
                 );
 
-                event.target.value =
+                setValue(
+                  "slug",
                   arabicSafeSlug(
-                    event.target
+                    event
+                      .target
                       .value,
-                  );
+                  ),
+                  {
+                    shouldDirty:
+                      true,
 
-                void slugRegistration.onChange(
-                  event,
+                    shouldValidate:
+                      true,
+                  },
                 );
               }}
             />
@@ -770,34 +720,34 @@ export function ProductForm({
             ) : null}
           </div>
 
-          <div className="lg:col-span-2">
+          <div>
             <label
-              htmlFor="description"
+              htmlFor="book-publisher"
               className="mb-2 block text-sm font-semibold"
             >
-              وصف الكتاب
+              الناشر
             </label>
 
-            <textarea
-              id="description"
-              placeholder="وصف مختصر وواضح للكتاب..."
+            <input
+              id="book-publisher"
+              type="text"
+              placeholder="اسم دار النشر"
               className={
-                textareaClassName(
+                fieldClassName(
                   Boolean(
-                    errors.description,
+                    errors.publisher,
                   ),
                 )
               }
               {...register(
-                "description",
+                "publisher",
               )}
             />
 
-            {errors.description ? (
+            {errors.publisher ? (
               <p className="mt-2 text-xs text-destructive">
                 {
-                  errors
-                    .description
+                  errors.publisher
                     .message
                 }
               </p>
@@ -806,14 +756,66 @@ export function ProductForm({
 
           <div>
             <label
-              htmlFor="category_id"
+              htmlFor="book-riwaya"
+              className="mb-2 block text-sm font-semibold"
+            >
+              الرواية
+            </label>
+
+            <input
+              id="book-riwaya"
+              type="text"
+              list="riwaya-suggestions"
+              placeholder="مثال: حفص عن عاصم"
+              className={
+                fieldClassName(
+                  Boolean(
+                    errors.riwaya,
+                  ),
+                )
+              }
+              {...register(
+                "riwaya",
+              )}
+            />
+
+            <datalist id="riwaya-suggestions">
+              {RIWAYA_SUGGESTIONS.map(
+                (
+                  suggestion,
+                ) => (
+                  <option
+                    key={
+                      suggestion
+                    }
+                    value={
+                      suggestion
+                    }
+                  />
+                ),
+              )}
+            </datalist>
+
+            {errors.riwaya ? (
+              <p className="mt-2 text-xs text-destructive">
+                {
+                  errors.riwaya
+                    .message
+                }
+              </p>
+            ) : null}
+          </div>
+
+          <div>
+            <label
+              htmlFor="book-category"
               className="mb-2 block text-sm font-semibold"
             >
               التصنيف
             </label>
 
             <select
-              id="category_id"
+              id="book-category"
               className={
                 fieldClassName(
                   Boolean(
@@ -826,7 +828,7 @@ export function ProductForm({
               )}
             >
               <option value="">
-                بدون تصنيف
+                اختر التصنيف
               </option>
 
               {categories.map(
@@ -862,136 +864,37 @@ export function ProductForm({
 
           <div>
             <label
-              htmlFor="publisher"
-              className="mb-2 block text-sm font-semibold"
-            >
-              الناشر
-            </label>
-
-            <input
-              id="publisher"
-              type="text"
-              autoComplete="off"
-              placeholder="اسم دار النشر"
-              className={
-                fieldClassName(
-                  Boolean(
-                    errors.publisher,
-                  ),
-                )
-              }
-              {...register(
-                "publisher",
-              )}
-            />
-
-            {errors.publisher ? (
-              <p className="mt-2 text-xs text-destructive">
-                {
-                  errors.publisher
-                    .message
-                }
-              </p>
-            ) : null}
-          </div>
-
-          <div>
-            <label
-              htmlFor="riwaya"
-              className="mb-2 block text-sm font-semibold"
-            >
-              الرواية
-            </label>
-
-            <input
-              id="riwaya"
-              type="text"
-              list="riwaya-suggestions"
-              autoComplete="off"
-              placeholder="اختياري"
-              className={
-                fieldClassName(
-                  Boolean(
-                    errors.riwaya,
-                  ),
-                )
-              }
-              {...register(
-                "riwaya",
-              )}
-            />
-
-            <datalist id="riwaya-suggestions">
-              {RIWAYA_SUGGESTIONS.map(
-                (
-                  riwaya,
-                ) => (
-                  <option
-                    key={
-                      riwaya
-                    }
-                    value={
-                      riwaya
-                    }
-                  />
-                ),
-              )}
-            </datalist>
-
-            <p className="mt-2 text-xs text-muted-foreground">
-              حفص عن عاصم، ورش عن
-              نافع، قالون عن نافع.
-            </p>
-
-            {errors.riwaya ? (
-              <p className="mt-2 text-xs text-destructive">
-                {
-                  errors.riwaya
-                    .message
-                }
-              </p>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
-        <div className="mb-6">
-          <h2 className="text-lg font-bold">
-            السعر والمخزون
-          </h2>
-        </div>
-
-        <div className="grid gap-5 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="price"
+              htmlFor="book-price"
               className="mb-2 block text-sm font-semibold"
             >
               السعر
             </label>
 
-            <input
-              id="price"
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
-              className={
-                fieldClassName(
+            <div className="relative">
+              <input
+                id="book-price"
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                className={`${fieldClassName(
                   Boolean(
                     errors.price,
                   ),
-                )
-              }
-              {...register(
-                "price",
-                {
-                  valueAsNumber:
-                    true,
-                },
-              )}
-            />
+                )} pe-14`}
+                {...register(
+                  "price",
+                  {
+                    valueAsNumber:
+                      true,
+                  },
+                )}
+              />
+
+              <span className="pointer-events-none absolute end-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-muted-foreground">
+                د.ج
+              </span>
+            </div>
 
             {errors.price ? (
               <p className="mt-2 text-xs text-destructive">
@@ -1003,40 +906,34 @@ export function ProductForm({
             ) : null}
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label
-              htmlFor="stock"
+              htmlFor="book-description"
               className="mb-2 block text-sm font-semibold"
             >
-              المخزون
+              الوصف
             </label>
 
-            <input
-              id="stock"
-              type="number"
-              min={0}
-              step={1}
-              inputMode="numeric"
+            <textarea
+              id="book-description"
+              placeholder="وصف مختصر وواضح للكتاب..."
               className={
-                fieldClassName(
+                textareaClassName(
                   Boolean(
-                    errors.stock,
+                    errors.description,
                   ),
                 )
               }
               {...register(
-                "stock",
-                {
-                  valueAsNumber:
-                    true,
-                },
+                "description",
               )}
             />
 
-            {errors.stock ? (
+            {errors.description ? (
               <p className="mt-2 text-xs text-destructive">
                 {
-                  errors.stock
+                  errors
+                    .description
                     .message
                 }
               </p>
@@ -1046,27 +943,26 @@ export function ProductForm({
       </section>
 
       <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold">
               صور الكتاب
             </h2>
 
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            <p className="mt-1 text-sm text-muted-foreground">
+              بحد أقصى 3 صور،
               JPG أو PNG أو WebP،
-              أقل من 3 ميغابايت،
-              بحد أقصى 3 صور.
-              الصورة الأولى هي
-              الرئيسية.
+              وأقل من 3 ميغابايت.
             </p>
           </div>
 
           <label
-            className={`inline-flex h-10 w-fit items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-medium transition-colors ${
-              isUploading ||
-              imageLimitReached
+            className={`inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition-colors hover:bg-muted ${
+              disabled ||
+              images.length >=
+                MAX_BOOK_IMAGES
                 ? "pointer-events-none opacity-50"
-                : "cursor-pointer hover:bg-muted"
+                : ""
             }`}
           >
             {isUploading ? (
@@ -1081,60 +977,74 @@ export function ProductForm({
               />
             )}
 
-            {isUploading
-              ? "جار رفع الصور..."
-              : imageLimitReached
-                ? "اكتمل الحد الأقصى"
-                : "إضافة صور"}
+            إضافة صور
 
             <input
               type="file"
-              multiple
               accept="image/jpeg,image/png,image/webp"
-              onChange={
-                handleImagesSelected
-              }
+              multiple
               disabled={
-                isUploading ||
-                imageLimitReached
+                disabled ||
+                images.length >=
+                  MAX_BOOK_IMAGES
               }
+              onChange={(
+                event,
+              ) => {
+                void handleImagesSelected(
+                  event,
+                );
+              }}
               className="sr-only"
             />
           </label>
         </div>
 
+        {errors.images ? (
+          <p className="mb-4 text-xs text-destructive">
+            {
+              errors.images
+                .message
+            }
+          </p>
+        ) : null}
+
         {images.length ===
         0 ? (
-          <div className="flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 px-6 text-center">
-            <ImagePlus
-              className="mb-3 size-7 text-muted-foreground"
-              aria-hidden="true"
-            />
+          <div className="flex min-h-48 items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 p-6 text-center">
+            <div>
+              <ImagePlus
+                className="mx-auto size-8 text-muted-foreground"
+                aria-hidden="true"
+              />
 
-            <p className="text-sm font-semibold">
-              لا توجد صور بعد
-            </p>
+              <p className="mt-3 text-sm font-medium">
+                لا توجد صور بعد
+              </p>
 
-            <p className="mt-1 text-xs text-muted-foreground">
-              يمكنك إضافة حتى 3 صور
-              للكتاب.
-            </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                الصورة الأولى
+                ستكون الصورة الرئيسية.
+              </p>
+            </div>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {images.map(
               (
-                imageUrl,
+                image,
                 index,
               ) => (
                 <div
-                  key={`${imageUrl}-${index}`}
-                  className="relative overflow-hidden rounded-2xl border border-border bg-muted"
+                  key={
+                    image
+                  }
+                  className="overflow-hidden rounded-2xl border border-border bg-muted/20"
                 >
-                  <div className="aspect-[3/4]">
+                  <div className="relative aspect-[3/4] bg-muted">
                     <img
                       src={
-                        imageUrl
+                        image
                       }
                       alt={`صورة الكتاب ${
                         index +
@@ -1142,76 +1052,89 @@ export function ProductForm({
                       }`}
                       className="size-full object-cover"
                     />
+
+                    {index ===
+                    0 ? (
+                      <span className="absolute start-3 top-3 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
+                        الرئيسية
+                      </span>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void removeImage(
+                          image,
+                        );
+                      }}
+                      disabled={
+                        disabled
+                      }
+                      aria-label="حذف الصورة"
+                      className="absolute end-3 top-3 inline-flex size-9 items-center justify-center rounded-full bg-background/95 text-foreground shadow-sm transition hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50"
+                    >
+                      <X
+                        className="size-4"
+                        aria-hidden="true"
+                      />
+                    </button>
                   </div>
 
-                  {index ===
-                  0 ? (
-                    <span className="absolute start-2 top-2 rounded-full bg-background/90 px-2.5 py-1 text-xs font-semibold shadow-sm backdrop-blur">
-                      الصورة الرئيسية
-                    </span>
-                  ) : null}
+                  <div className="flex items-center justify-between gap-2 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      الصورة{" "}
+                      {
+                        index +
+                        1
+                      }
+                    </p>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void removeImage(
-                        index,
-                      );
-                    }}
-                    aria-label="حذف الصورة"
-                    className="absolute end-2 top-2 inline-flex size-9 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-background"
-                  >
-                    <X
-                      className="size-4"
-                      aria-hidden="true"
-                    />
-                  </button>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        disabled={
+                          index ===
+                            0 ||
+                          disabled
+                        }
+                        onClick={() =>
+                          moveImage(
+                            index,
+                            "up",
+                          )
+                        }
+                        aria-label="نقل الصورة للأعلى"
+                        className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background transition-colors hover:bg-muted disabled:opacity-30"
+                      >
+                        <ArrowUp
+                          className="size-4"
+                          aria-hidden="true"
+                        />
+                      </button>
 
-                  <div className="absolute bottom-2 start-2 flex gap-1 rounded-xl bg-background/90 p-1 shadow-sm backdrop-blur">
-                    <button
-                      type="button"
-                      disabled={
-                        index ===
-                        0
-                      }
-                      onClick={() =>
-                        moveImage(
-                          index,
-                          index -
-                            1,
-                        )
-                      }
-                      aria-label="تحريك الصورة للأمام"
-                      className="inline-flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
-                    >
-                      <ArrowUp
-                        className="size-4"
-                        aria-hidden="true"
-                      />
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={
-                        index ===
-                        images.length -
-                          1
-                      }
-                      onClick={() =>
-                        moveImage(
-                          index,
-                          index +
-                            1,
-                        )
-                      }
-                      aria-label="تحريك الصورة للخلف"
-                      className="inline-flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-30"
-                    >
-                      <ArrowDown
-                        className="size-4"
-                        aria-hidden="true"
-                      />
-                    </button>
+                      <button
+                        type="button"
+                        disabled={
+                          index ===
+                            images.length -
+                              1 ||
+                          disabled
+                        }
+                        onClick={() =>
+                          moveImage(
+                            index,
+                            "down",
+                          )
+                        }
+                        aria-label="نقل الصورة للأسفل"
+                        className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background transition-colors hover:bg-muted disabled:opacity-30"
+                      >
+                        <ArrowDown
+                          className="size-4"
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ),
@@ -1219,36 +1142,28 @@ export function ProductForm({
           </div>
         )}
 
-        <p className="mt-3 text-xs text-muted-foreground">
-          {images.length} /{" "}
+        <p className="mt-4 text-xs text-muted-foreground">
           {
-            MAX_PRODUCT_IMAGE_COUNT
+            images.length
+          }{" "}
+          من{" "}
+          {
+            MAX_BOOK_IMAGES
           }{" "}
           صور
         </p>
-
-        {errors.images ? (
-          <p className="mt-2 text-xs text-destructive">
-            {
-              errors.images
-                .message
-            }
-          </p>
-        ) : null}
       </section>
 
       <section className="rounded-2xl border border-border bg-background p-5 shadow-sm sm:p-6">
-        <div className="mb-5">
-          <h2 className="text-lg font-bold">
-            الظهور في المتجر
-          </h2>
-        </div>
+        <h2 className="text-lg font-bold">
+          الظهور في المتجر
+        </h2>
 
-        <div className="space-y-4">
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background p-4">
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4">
             <input
               type="checkbox"
-              className="mt-1 size-4 shrink-0 accent-primary"
+              className="mt-1 size-4 accent-primary"
               {...register(
                 "is_active",
               )}
@@ -1260,17 +1175,16 @@ export function ProductForm({
               </span>
 
               <span className="mt-1 block text-xs leading-6 text-muted-foreground">
-                يظهر الكتاب للعملاء
-                في المتجر عندما يكون
-                نشطاً.
+                يظهر الكتاب ويمكن
+                للعملاء طلبه.
               </span>
             </span>
           </label>
 
-          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background p-4">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4">
             <input
               type="checkbox"
-              className="mt-1 size-4 shrink-0 accent-primary"
+              className="mt-1 size-4 accent-primary"
               {...register(
                 "is_featured",
               )}
@@ -1282,46 +1196,38 @@ export function ProductForm({
               </span>
 
               <span className="mt-1 block text-xs leading-6 text-muted-foreground">
-                يظهر ضمن قسم الأكثر
-                طلباً في الصفحة
-                الرئيسية.
+                يمكن استخدامه في
+                أقسام الكتب المميزة.
               </span>
             </span>
           </label>
         </div>
       </section>
 
-      <div className="sticky bottom-4 z-10 flex justify-end">
-        <div className="rounded-2xl border border-border bg-background/95 p-2 shadow-lg backdrop-blur">
-          <button
-            type="submit"
-            disabled={
-              isBusy
-            }
-            className="inline-flex h-11 min-w-40 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
-          >
-            {isBusy ? (
-              <Loader2
-                className="size-4 animate-spin"
-                aria-hidden="true"
-              />
-            ) : (
-              <Save
-                className="size-4"
-                aria-hidden="true"
-              />
-            )}
+      <div className="flex justify-end">
+        <button
+          type="submit"
+          disabled={
+            disabled
+          }
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
+        >
+          {disabled ? (
+            <Loader2
+              className="size-4 animate-spin"
+              aria-hidden="true"
+            />
+          ) : (
+            <Save
+              className="size-4"
+              aria-hidden="true"
+            />
+          )}
 
-            {isUploading
-              ? "جار رفع الصور..."
-              : isSubmitting
-                ? "جار الحفظ..."
-                : mode ===
-                    "create"
-                  ? "إنشاء الكتاب"
-                  : "حفظ التغييرات"}
-          </button>
-        </div>
+          {mode === "create"
+            ? "إضافة الكتاب"
+            : "حفظ التعديلات"}
+        </button>
       </div>
     </form>
   );

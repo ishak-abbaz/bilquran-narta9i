@@ -1,119 +1,174 @@
-"use client";
+import {
+  LockKeyhole,
+  Mail,
+} from "lucide-react";
 
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  loginAdmin,
+} from "@/app/admin/login/actions";
 
-import { loginAdmin } from "./actions";
+type LoginPageProps = {
+  searchParams: Promise<{
+    error?: string;
+    password?: string;
+  }>;
+};
 
-const loginSchema = z.object({
-  email: z
-    .string()
-    .email("أدخل بريداً إلكترونياً صحيحاً."),
-  password: z
-    .string()
-    .min(6, "كلمة المرور يجب أن تكون 6 أحرف على الأقل."),
-});
+function getErrorMessage(
+  value:
+    | string
+    | undefined,
+) {
+  switch (value) {
+    case "invalid":
+      return "البريد الإلكتروني أو كلمة المرور غير صحيحة.";
 
-type LoginFormValues = z.infer<typeof loginSchema>;
+    case "unauthorized":
+      return "هذا الحساب غير مخول بالدخول إلى لوحة الإدارة.";
 
-export default function AdminLoginPage() {
-  const [serverError, setServerError] = useState("");
+    default:
+      return "";
+  }
+}
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-  });
-
-  async function onSubmit(values: LoginFormValues) {
-    setServerError("");
-
-    const formData = new FormData();
-
-    formData.append("email", values.email);
-    formData.append("password", values.password);
-
-    const result = await loginAdmin(formData);
-
-    if (result?.error) {
-      setServerError(result.error);
-    }
+function getSuccessMessage(
+  value:
+    | string
+    | undefined,
+) {
+  if (
+    value ===
+    "changed"
+  ) {
+    return "تم تغيير كلمة المرور بنجاح. سجل الدخول بكلمة المرور الجديدة.";
   }
 
+  return "";
+}
+
+export default async function AdminLoginPage({
+  searchParams,
+}: LoginPageProps) {
+  const params =
+    await searchParams;
+
+  const errorMessage =
+    getErrorMessage(
+      params.error,
+    );
+
+  const successMessage =
+    getSuccessMessage(
+      params.password,
+    );
+
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
-      <section className="w-full max-w-md space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="space-y-2 text-start">
-          <h1 className="text-2xl font-semibold">
-            دخول الإدارة
+    <main className="flex min-h-screen items-center justify-center bg-muted/20 px-4 py-12">
+      <div className="w-full max-w-md">
+        <div className="mb-8 text-center">
+          <p className="text-sm font-semibold text-primary">
+            بالقرآن نرتقي
+          </p>
+
+          <h1 className="mt-3 text-3xl font-bold">
+            تسجيل دخول الإدارة
           </h1>
 
-          <p className="text-sm text-muted-foreground">
-            سجل الدخول لإدارة المتجر.
+          <p className="mt-2 text-sm text-muted-foreground">
+            أدخل بيانات حساب الإدارة للمتابعة.
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit(onSubmit)}
-          className="space-y-4"
-        >
-          <div className="space-y-2">
-            <label className="text-sm">
-              البريد الإلكتروني
-            </label>
+        <div className="rounded-3xl border border-border bg-background p-6 shadow-sm sm:p-8">
+          {successMessage ? (
+            <div
+              role="status"
+              className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm leading-7 text-primary"
+            >
+              {
+                successMessage
+              }
+            </div>
+          ) : null}
 
-            <input
-              {...register("email")}
-              type="email"
-              autoComplete="email"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-start outline-none"
-            />
+          {errorMessage ? (
+            <div
+              role="alert"
+              className="mb-5 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm leading-7 text-destructive"
+            >
+              {
+                errorMessage
+              }
+            </div>
+          ) : null}
 
-            {errors.email && (
-              <p className="text-sm text-destructive">
-                {errors.email.message}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm">
-              كلمة المرور
-            </label>
-
-            <input
-              {...register("password")}
-              type="password"
-              autoComplete="current-password"
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-start outline-none"
-            />
-
-            {errors.password && (
-              <p className="text-sm text-destructive">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
-
-          {serverError && (
-            <p className="text-sm text-destructive">
-              {serverError}
-            </p>
-          )}
-
-          <button
-            disabled={isSubmitting}
-            type="submit"
-            className="h-10 w-full rounded-md bg-primary text-primary-foreground disabled:opacity-50"
+          <form
+            action={
+              loginAdmin
+            }
+            className="space-y-5"
           >
-            {isSubmitting ? "جارٍ الدخول..." : "دخول"}
-          </button>
-        </form>
-      </section>
+            <div>
+              <label
+                htmlFor="admin-email"
+                className="mb-2 block text-sm font-semibold"
+              >
+                البريد الإلكتروني
+              </label>
+
+              <div className="relative">
+                <Mail
+                  className="pointer-events-none absolute start-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+
+                <input
+                  id="admin-email"
+                  name="email"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  dir="ltr"
+                  className="h-12 w-full rounded-xl border border-input bg-background ps-12 pe-4 text-start text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="admin-password"
+                className="mb-2 block text-sm font-semibold"
+              >
+                كلمة المرور
+              </label>
+
+              <div className="relative">
+                <LockKeyhole
+                  className="pointer-events-none absolute start-4 top-1/2 size-5 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+
+                <input
+                  id="admin-password"
+                  name="password"
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  dir="ltr"
+                  className="h-12 w-full rounded-xl border border-input bg-background ps-12 pe-4 text-start text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="h-12 w-full rounded-xl bg-primary px-6 text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              تسجيل الدخول
+            </button>
+          </form>
+        </div>
+      </div>
     </main>
   );
 }

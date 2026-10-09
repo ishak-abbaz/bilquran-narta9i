@@ -1,52 +1,131 @@
 "use client";
 
+import {
+  BarChart3,
+  KeyRound,
+  LayoutDashboard,
+  Mail,
+  Package,
+  Settings,
+  ShoppingBag,
+  Tags,
+} from "lucide-react";
 import Link from "next/link";
 import {
   usePathname,
 } from "next/navigation";
 
+type AdminNavProps = {
+  onNavigate?: () => void;
+};
+
 const links = [
   {
     title:
       "لوحة التحكم",
-    href: "/admin",
+    href:
+      "/admin",
+    icon:
+      LayoutDashboard,
+    exact:
+      true,
   },
   {
-    title: "الطلبات",
-    href: "/admin/orders",
+    title:
+      "الطلبات",
+    href:
+      "/admin/orders",
+    icon:
+      ShoppingBag,
+    exact:
+      false,
   },
   {
-    title: "المنتجات",
-    href: "/admin/products",
+    title:
+      "الكتب",
+    href:
+      "/admin/products",
+    icon:
+      Package,
+    exact:
+      false,
   },
   {
-    title: "التصنيفات",
-    href: "/admin/categories",
+    title:
+      "التصنيفات",
+    href:
+      "/admin/categories",
+    icon:
+      Tags,
+    exact:
+      false,
   },
   {
-    title: "المبيعات",
-    href: "/admin/sales",
+    title:
+      "المبيعات",
+    href:
+      "/admin/sales",
+    icon:
+      BarChart3,
+    exact:
+      false,
   },
   {
-    title: "الإعدادات",
-    href: "/admin/settings",
+    title:
+      "الرسائل",
+    href:
+      "/admin/messages",
+    icon:
+      Mail,
+    exact:
+      false,
+  },
+  {
+    title:
+      "الإعدادات",
+    href:
+      "/admin/settings",
+    icon:
+      Settings,
+    exact:
+      false,
+  },
+  {
+    title:
+      "كلمة المرور",
+    href:
+      "/admin/account",
+    icon:
+      KeyRound,
+    exact:
+      false,
   },
 ];
 
-export default function AdminNav() {
+export default function AdminNav({
+  onNavigate,
+}: AdminNavProps) {
   const pathname =
     usePathname();
 
   return (
-    <nav className="space-y-2">
+    <nav className="space-y-1">
       {links.map(
-        (link) => {
+        (
+          link,
+        ) => {
+          const Icon =
+            link.icon;
+
           const active =
-            pathname ===
-              link.href ||
-            pathname.startsWith(
-              `${link.href}/`,
-            );
+            link.exact
+              ? pathname ===
+                link.href
+              : pathname ===
+                  link.href ||
+                pathname.startsWith(
+                  `${link.href}/`,
+                );
 
           return (
             <Link
@@ -56,15 +135,25 @@ export default function AdminNav() {
               href={
                 link.href
               }
-              className={`block rounded-lg px-4 py-3 text-sm transition ${
+              onClick={
+                onNavigate
+              }
+              className={`flex h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${
                 active
-                  ? "bg-white text-black"
-                  : "text-white/70 hover:bg-white/10 hover:text-white"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
-              {
-                link.title
-              }
+              <Icon
+                className="size-4 shrink-0"
+                aria-hidden="true"
+              />
+
+              <span>
+                {
+                  link.title
+                }
+              </span>
             </Link>
           );
         },

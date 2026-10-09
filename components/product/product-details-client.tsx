@@ -20,10 +20,10 @@ type DeliveryPrice = {
   desk_price: number;
 };
 
-interface ProductDetailsClientProps {
+type ProductDetailsClientProps = {
   product: Product;
   deliveryPrices: DeliveryPrice[];
-}
+};
 
 export default function ProductDetailsClient({
   product,
@@ -45,7 +45,7 @@ export default function ProductDetailsClient({
       selectedImageIndex
     ];
 
-  const inStock =
+  const available =
     product.stock > 0;
 
   return (
@@ -66,7 +66,7 @@ export default function ProductDetailsClient({
               className="object-cover"
             />
           ) : (
-            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
               لا توجد صورة لهذا
               الكتاب
             </div>
@@ -80,48 +80,40 @@ export default function ProductDetailsClient({
               (
                 image,
                 index,
-              ) => {
-                const isSelected =
-                  index ===
-                  selectedImageIndex;
-
-                return (
-                  <button
-                    key={`${image}-${index}`}
-                    type="button"
-                    onClick={() =>
-                      setSelectedImageIndex(
-                        index,
-                      )
+              ) => (
+                <button
+                  key={`${image}-${index}`}
+                  type="button"
+                  onClick={() =>
+                    setSelectedImageIndex(
+                      index,
+                    )
+                  }
+                  aria-label={`عرض الصورة ${
+                    index +
+                    1
+                  }`}
+                  className={`relative aspect-[3/4] w-16 overflow-hidden rounded-xl border bg-muted sm:w-20 ${
+                    selectedImageIndex ===
+                    index
+                      ? "border-primary ring-2 ring-primary/20"
+                      : "border-border"
+                  }`}
+                >
+                  <Image
+                    src={
+                      image
                     }
-                    aria-label={`عرض الصورة ${
+                    alt={`${product.name}، الصورة ${
                       index +
                       1
                     }`}
-                    aria-pressed={
-                      isSelected
-                    }
-                    className={`relative aspect-[3/4] w-16 overflow-hidden rounded-xl border bg-muted transition sm:w-20 ${
-                      isSelected
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <Image
-                      src={
-                        image
-                      }
-                      alt={`${product.name}، الصورة ${
-                        index +
-                        1
-                      }`}
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  </button>
-                );
-              },
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                </button>
+              ),
             )}
           </div>
         ) : null}
@@ -182,7 +174,7 @@ export default function ProductDetailsClient({
             </dt>
 
             <dd>
-              {inStock ? (
+              {available ? (
                 <span className="inline-flex items-center gap-2 font-semibold text-primary">
                   <span
                     className="size-2 rounded-full bg-primary"
@@ -193,7 +185,7 @@ export default function ProductDetailsClient({
                 </span>
               ) : (
                 <span className="font-semibold text-destructive">
-                  نفدت الكمية
+                  غير متوفر
                 </span>
               )}
             </dd>
@@ -212,7 +204,7 @@ export default function ProductDetailsClient({
         </div>
 
         <div className="mt-10 border-t border-border pt-6">
-          {inStock ? (
+          {available ? (
             <OrderForm
               book={
                 product
@@ -222,13 +214,10 @@ export default function ProductDetailsClient({
               }
             />
           ) : (
-            <button
-              type="button"
-              disabled
-              className="h-12 w-full cursor-not-allowed rounded-xl bg-primary px-6 font-semibold text-primary-foreground opacity-50"
-            >
-              نفدت الكمية
-            </button>
+            <div className="rounded-xl bg-muted p-4 text-center text-sm font-semibold text-muted-foreground">
+              هذا الكتاب غير متوفر
+              حالياً.
+            </div>
           )}
         </div>
       </div>

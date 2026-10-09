@@ -1,32 +1,40 @@
-import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import type {
+  ReactNode,
+} from "react";
 
-import AdminSidebar from "@/components/admin/admin-sidebar";
-import { requireAdmin } from "@/lib/auth";
+import AdminMobileMenu from "@/components/admin/admin-mobile-menu";
+import AdminSideBar from "@/components/admin/admin-sidebar";
+import {
+  requireAdmin,
+} from "@/lib/auth";
 
-export const metadata: Metadata = {
-  robots: {
-    index: false,
-    follow: false,
-  },
+type AdminPanelLayoutProps = {
+  children: ReactNode;
 };
 
 export default async function AdminPanelLayout({
   children,
-}: {
-  children: ReactNode;
-}) {
+}: AdminPanelLayoutProps) {
   await requireAdmin();
 
   return (
-    <div className="min-h-screen bg-muted/20 lg:flex">
-      <AdminSidebar />
-
-      <main className="min-w-0 flex-1">
-        <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-          {children}
+    <div className="min-h-screen bg-muted/20">
+      {/* Mobile header */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur lg:hidden">
+        <div className="flex h-16 items-center px-4">
+          <AdminMobileMenu />
         </div>
-      </main>
+      </header>
+
+      <div className="lg:flex lg:min-h-screen">
+        <AdminSideBar />
+
+        <main className="min-w-0 flex-1">
+          <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
